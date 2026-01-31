@@ -57,8 +57,50 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok',
     message: 'Stock Dashboard API is running!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    services: {
+      stockService: !!stockService,
+      scoringService: !!scoringService,
+      screenerService: !!screenerService,
+      strategyPresetsService: !!strategyPresetsService
+    },
+    env: {
+      nodeEnv: process.env.NODE_ENV || 'development',
+      rapidApiKey: process.env.RAPIDAPI_KEY ? 'SET' : 'NOT SET',
+      finnhubKey: process.env.FINNHUB_API_KEY ? 'SET' : 'NOT SET'
+    }
   });
+});
+
+// Debug endpoint - test stock fetch
+app.get('/api/debug/test-stock/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  const results = { symbol, tests: [] };
+  
+  // Test Yahoo Finance
+  try {
+    const YahooFinance = require('yahoo-finance2').default;
+    const yf = new YahooFinance({ suppressNotices: ['ripHistorical', 'yahooSurvey'] });
+    const quote = await yf.quote(`${symbol}.NS`);
+    results.tests.push({ source: 'Yahoo Finance', success: true, price: quote?.regularMarketPrice });
+  } catch (e) {
+    results.tests.push({ source: 'Yahoo Finance', success: false, error: e.message });
+  }
+  
+  // Test RapidAPI
+  try {
+    const rapidApiService = require('./services/rapidApiService');
+    if (rapidApiService.isConfigured()) {
+      const data = await rapidApiService.getLatestStockPrice(symbol);
+      results.tests.push({ source: 'RapidAPI', success: true, price: data?.price });
+    } else {
+      results.tests.push({ source: 'RapidAPI', success: false, error: 'Not configured' });
+    }
+  } catch (e) {
+    results.tests.push({ source: 'RapidAPI', success: false, error: e.message });
+  }
+  
+  res.json(results);
 });
 
 // Keep legacy route for compatibility
