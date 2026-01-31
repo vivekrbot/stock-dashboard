@@ -1,7 +1,19 @@
 const fetch = require('node-fetch');
 const rapidApiService = require('./rapidApiService');
-const YahooFinance = require('yahoo-finance2').default;
-const yahooFinance = new YahooFinance({ suppressNotices: ['ripHistorical', 'yahooSurvey'] });
+
+// Lazy-load Yahoo Finance to avoid startup issues
+let yahooFinance = null;
+const getYahooFinance = () => {
+  if (!yahooFinance) {
+    try {
+      const YahooFinance = require('yahoo-finance2').default;
+      yahooFinance = new YahooFinance({ suppressNotices: ['ripHistorical', 'yahooSurvey'] });
+    } catch (e) {
+      console.error('Failed to initialize Yahoo Finance:', e.message);
+    }
+  }
+  return yahooFinance;
+};
 
 class StockService {
   constructor() {
@@ -14,7 +26,19 @@ class StockService {
   async getStockPrice(symbol) {
     const errors = [];
 
-    // Try RapidAPI first if configured
+    // Try Yahoo Finance first (most reliable)
+    try {
+      const yahooData = await this.fetchFromYahoo(symbol);
+      if (yahooData && yahooData.price > 0) {
+        console.log(`✓ ${symbol} fetched from Yahoo Finance`);
+        return yahooData;
+      }
+    } catch (yahooError) {
+      errors.push(`Yahoo: ${yahooError.message}`);
+      console.log(`⚠ Yahoo Finance failed for ${symbol}:`, yahooError.message);
+    }
+
+    // Try RapidAPI as secondary source
     if (this.rapidApi.isConfigured()) {
       try {
         const rapidData = await this.rapidApi.getLatestStockPrice(symbol);
@@ -26,18 +50,6 @@ class StockService {
         errors.push(`RapidAPI: ${rapidError.message}`);
         console.log(`⚠ RapidAPI failed for ${symbol}:`, rapidError.message);
       }
-    }
-
-    // Try Yahoo Finance as primary fallback
-    try {
-      const yahooData = await this.fetchFromYahoo(symbol);
-      if (yahooData && yahooData.price > 0) {
-        console.log(`✓ ${symbol} fetched from Yahoo Finance`);
-        return yahooData;
-      }
-    } catch (yahooError) {
-      errors.push(`Yahoo: ${yahooError.message}`);
-      console.log(`⚠ Yahoo Finance failed for ${symbol}:`, yahooError.message);
     }
 
     // Try NSE as last resort
@@ -57,10 +69,15 @@ class StockService {
 
   // Fetch from Yahoo Finance (reliable for Indian stocks)
   async fetchFromYahoo(symbol) {
+    const yf = getYahooFinance();
+    if (!yf) {
+      throw new Error('Yahoo Finance not available');
+    }
+    
     // Add .NS suffix for NSE stocks
     const yahooSymbol = symbol.includes('.') ? symbol : `${symbol}.NS`;
     
-    const quote = await yahooFinance.quote(yahooSymbol);
+    const quote = await yf.quote(yahooSymbol);
     
     if (!quote || !quote.regularMarketPrice) {
       throw new Error('No data available');
@@ -185,13 +202,16 @@ class StockService {
   // Get historical data - REAL DATA with Yahoo Finance
   async getHistoricalData(symbol, days = 90) {
     try {
+      const yf = getYahooFinance();
+      if (!yf) throw new Error('Yahoo Finance not available');
+      
       // Use Yahoo Finance for historical data
       const yahooSymbol = symbol.includes('.') ? symbol : `${symbol}.NS`;
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       
-      const history = await yahooFinance.historical(yahooSymbol, {
+      const history = await yf.historical(yahooSymbol, {
         period1: startDate,
         period2: endDate,
         interval: '1d'
@@ -247,9 +267,12 @@ class StockService {
   // Get stock fundamentals - REAL DATA with Yahoo Finance
   async getStockDetails(symbol) {
     try {
+      const yf = getYahooFinance();
+      if (!yf) throw new Error('Yahoo Finance not available');
+      
       // Use Yahoo Finance for fundamentals
       const yahooSymbol = symbol.includes('.') ? symbol : `${symbol}.NS`;
-      const quote = await yahooFinance.quote(yahooSymbol);
+      const quote = await yf.quote(yahooSymbol);
       
       if (quote) {
         return {
