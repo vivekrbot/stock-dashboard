@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import StockCard from './components/StockCard';
 import AnalysisModal from './components/AnalysisModal';
+import SplashScreen from './components/SplashScreen';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function App() {
+  const [isLoading, setIsLoading] = useState(true);
   const defaultWatchlist = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
   const [watchlist, setWatchlist] = useState(defaultWatchlist);
   const [newSymbol, setNewSymbol] = useState('');
@@ -23,10 +27,15 @@ function App() {
   
   const [scanResults, setScanResults] = useState(null);
 
+  // Show splash screen first
+  if (isLoading) {
+    return <SplashScreen onReady={() => setIsLoading(false)} />;
+  }
+
   // Fetch strategy details when strategy changes
   useEffect(() => {
     if (strategy) {
-      fetch(`http://localhost:3001/api/screener/strategies/${strategy}`)
+      fetch(`${API_BASE}/api/screener/strategies/${strategy}`)
         .then(res => res.json())
         .then(data => setStrategyDetails(data))
         .catch(err => console.error('Error fetching strategy:', err));
@@ -60,7 +69,7 @@ function App() {
       sectorLeadersOnly
     };
 
-    const response = await fetch('http://localhost:3001/api/screener/find-opportunities', {
+    const response = await fetch(`${API_BASE}/api/screener/find-opportunities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(filterPayload)

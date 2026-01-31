@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 function StockCard({ symbol, onAnalyze, onRemove }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,7 +13,7 @@ function StockCard({ symbol, onAnalyze, onRemove }) {
   const fetchStock = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/stock/${symbol}`);
+      const response = await fetch(`${API_BASE}/api/stock/${symbol}`);
       const stockData = await response.json();
       setData(stockData);
     } catch (error) {
