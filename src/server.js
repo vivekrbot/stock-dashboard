@@ -1,10 +1,43 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const stockService = require('./services/stockService');
 
 require('dotenv').config();
-console.log('API Key loaded:', process.env.FINNHUB_API_KEY ? 'YES ✓' : 'NO ✗');
+console.log('🚀 Starting Stock Dashboard API...');
+console.log('📊 Environment:', process.env.NODE_ENV || 'development');
+console.log('🔑 RAPIDAPI_KEY:', process.env.RAPIDAPI_KEY ? 'SET ✓' : 'NOT SET ✗');
+console.log('🔑 FINNHUB_API_KEY:', process.env.FINNHUB_API_KEY ? 'SET ✓' : 'NOT SET ✗');
+
+// Load services with error handling
+let stockService, scoringService, screenerService, strategyPresetsService;
+
+try {
+  stockService = require('./services/stockService');
+  console.log('✓ stockService loaded');
+} catch (e) {
+  console.error('✗ Failed to load stockService:', e.message);
+}
+
+try {
+  scoringService = require('./services/scoringService');
+  console.log('✓ scoringService loaded');
+} catch (e) {
+  console.error('✗ Failed to load scoringService:', e.message);
+}
+
+try {
+  screenerService = require('./services/screenerService');
+  console.log('✓ screenerService loaded');
+} catch (e) {
+  console.error('✗ Failed to load screenerService:', e.message);
+}
+
+try {
+  strategyPresetsService = require('./services/strategyPresetsService');
+  console.log('✓ strategyPresetsService loaded');
+} catch (e) {
+  console.error('✗ Failed to load strategyPresetsService:', e.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -110,8 +143,6 @@ app.get('/api/stock/:symbol/history', async (req, res) => {
   }
 });
 
-const scoringService = require('./services/scoringService');
-
 // Get complete stock analysis with confidence score
 app.get('/api/stock/:symbol/analyze', async (req, res) => {
   try {
@@ -148,8 +179,6 @@ app.get('/api/stock/:symbol/analyze', async (req, res) => {
   }
 });
 
-const screenerService = require('./services/screenerService');
-
 // Stock screener endpoint
 app.post('/api/screener/find-opportunities', async (req, res) => {
   try {
@@ -180,8 +209,6 @@ app.post('/api/screener/refresh-nse-stocks', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-const strategyPresetsService = require('./services/strategyPresetsService');
 
 // Get available trading strategies
 app.get('/api/screener/strategies', (req, res) => {
