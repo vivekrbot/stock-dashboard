@@ -47,10 +47,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.use(cors());
 app.use(express.json());
 
-// Serve static frontend in production
-if (isProduction) {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
-}
+// NOTE: Frontend is hosted on GitHub Pages, not served from here
+// Static file serving disabled to prevent conflicts
 
 // Test route
 app.get('/api/health', (req, res) => {
@@ -103,13 +101,21 @@ app.get('/api/debug/test-stock/:symbol', async (req, res) => {
   res.json(results);
 });
 
-// Keep legacy route for compatibility
+// Root route - API info
 app.get('/', (req, res) => {
-  if (isProduction) {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
-  } else {
-    res.json({ message: 'Stock Dashboard API is running!' });
-  }
+  res.json({ 
+    name: 'Stock Dashboard API',
+    version: '1.0.0',
+    commit: '7b00d09',
+    message: 'API is running! Frontend is at https://vivekrbot.github.io/stock-dashboard/',
+    endpoints: [
+      '/api/health',
+      '/api/stock/:symbol',
+      '/api/stock/:symbol/analyze',
+      '/api/screener/strategies',
+      '/api/screener/find-opportunities'
+    ]
+  });
 });
 
 // Get single stock data
