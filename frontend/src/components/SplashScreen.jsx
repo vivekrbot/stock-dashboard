@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -6,37 +6,47 @@ function SplashScreen({ onReady }) {
   const [logs, setLogs] = useState([]);
   const [status, setStatus] = useState('initializing');
   const [progress, setProgress] = useState(0);
-
-  const addLog = (message, type = 'info') => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, { message, type, timestamp }]);
-  };
+  const onReadyRef = useRef(onReady);
+  const hasInitialized = useRef(false);
+  
+  // Keep the ref updated
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
+    // Prevent double initialization in React Strict Mode
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+    
     let isMounted = true;
     
-    const safeSetState = (setter, value) => {
-      if (isMounted) setter(value);
-    };
-    
-    const safeAddLog = (message, type = 'info') => {
+    const safeSetLogs = (message, type = 'info') => {
       if (isMounted) {
         const timestamp = new Date().toLocaleTimeString();
         setLogs(prev => [...prev, { message, type, timestamp }]);
       }
     };
+    
+    const safeSetProgress = (value) => {
+      if (isMounted) setProgress(value);
+    };
+    
+    const safeSetStatus = (value) => {
+      if (isMounted) setStatus(value);
+    };
 
     const initializeApp = async () => {
       try {
         // Step 1: Initialize
-        safeAddLog('🚀 Initializing Stock Dashboard...', 'info');
-        safeSetState(setProgress, 10);
+        safeSetLogs('🚀 Initializing Stock Dashboard...', 'info');
+        safeSetProgress(10);
         await new Promise(r => setTimeout(r, 500));
         if (!isMounted) return;
 
         // Step 2: Check Backend
-        safeAddLog('📡 Connecting to backend server...', 'info');
-        safeSetState(setProgress, 30);
+        safeSetLogs('📡 Connecting to backend server...', 'info');
+        safeSetProgress(30);
         
         let backendConnected = false;
         let retries = 0;
@@ -51,13 +61,13 @@ function SplashScreen({ onReady }) {
             
             if (response.ok) {
               const data = await response.json();
-              safeAddLog(`✅ Backend connected: ${data.message}`, 'success');
+              safeSetLogs(`✅ Backend connected: ${data.message}`, 'success');
               backendConnected = true;
             }
           } catch (err) {
             retries++;
             if (retries < maxRetries) {
-              safeAddLog(`⚠️ Connection attempt ${retries}/${maxRetries} failed, retrying...`, 'warning');
+              safeSetLogs(`⚠️ Connection attempt ${retries}/${maxRetries} failed, retrying...`, 'warning');
               await new Promise(r => setTimeout(r, 1000));
             }
           }
@@ -66,41 +76,43 @@ function SplashScreen({ onReady }) {
         if (!isMounted) return;
 
         if (!backendConnected) {
-          safeAddLog('❌ Backend connection failed. Using offline mode.', 'error');
+          safeSetLogs('❌ Backend connection failed. Using offline mode.', 'error');
         }
 
-        safeSetState(setProgress, 50);
+        safeSetProgress(50);
 
         // Step 3: Load Frontend Assets
-        safeAddLog('🎨 Loading frontend components...', 'info');
+        safeSetLogs('🎨 Loading frontend components...', 'info');
         await new Promise(r => setTimeout(r, 400));
         if (!isMounted) return;
-        safeSetState(setProgress, 70);
-        safeAddLog('✅ Frontend loaded successfully', 'success');
+        safeSetProgress(70);
+        safeSetLogs('✅ Frontend loaded successfully', 'success');
 
         // Step 4: Initialize Services
-        safeAddLog('📊 Initializing stock services...', 'info');
+        safeSetLogs('📊 Initializing stock services...', 'info');
         await new Promise(r => setTimeout(r, 300));
         if (!isMounted) return;
-        safeSetState(setProgress, 85);
-        safeAddLog('✅ Services ready', 'success');
+        safeSetProgress(85);
+        safeSetLogs('✅ Services ready', 'success');
 
         // Step 5: Complete
-        safeSetState(setProgress, 100);
-        safeAddLog('🎉 All systems operational!', 'success');
+        safeSetProgress(100);
+        safeSetLogs('🎉 All systems operational!', 'success');
         await new Promise(r => setTimeout(r, 500));
         if (!isMounted) return;
         
-        safeSetState(setStatus, 'ready');
-        safeAddLog('', 'welcome');
+        safeSetStatus('ready');
+        safeSetLogs('', 'welcome');
         
         // Wait for welcome message, then proceed
         await new Promise(r => setTimeout(r, 2000));
-        if (isMounted) onReady();
+        if (isMounted && onReadyRef.current) {
+          onReadyRef.current();
+        }
 
       } catch (error) {
-        safeAddLog(`❌ Error: ${error.message}`, 'error');
-        safeSetState(setStatus, 'error');
+        safeSetLogs(`❌ Error: ${error.message}`, 'error');
+        safeSetStatus('error');
       }
     };
 
@@ -109,7 +121,7 @@ function SplashScreen({ onReady }) {
     return () => {
       isMounted = false;
     };
-  }, [onReady]);
+  }, []); // Empty dependency array - runs once
 
   return (
     <div style={{
