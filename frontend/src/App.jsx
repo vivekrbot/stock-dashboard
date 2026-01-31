@@ -32,13 +32,46 @@ function App() {
   
   const [scanResults, setScanResults] = useState(null);
 
+  // Mock strategy data for when API is unavailable
+  const MOCK_STRATEGIES = {
+    'short-term': {
+      name: 'Short-Term Trading',
+      description: 'Day/swing trading with heavy technical focus',
+      timeframe: '1-7 days',
+      weights: { technical: 0.80, fundamental: 0.20 }
+    },
+    'balanced': {
+      name: 'Balanced Trading',
+      description: 'Medium-term swing trading, balanced approach',
+      timeframe: '1-4 weeks',
+      weights: { technical: 0.60, fundamental: 0.40 }
+    },
+    'long-term': {
+      name: 'Long-Term Investment',
+      description: 'Value investing with strong fundamentals focus',
+      timeframe: '1-6 months',
+      weights: { technical: 0.30, fundamental: 0.70 }
+    }
+  };
+
   // Fetch strategy details when strategy changes - MUST be before any conditional returns!
   useEffect(() => {
     if (!isLoading && strategy) {
-      fetch(`${API_BASE}/api/screener/strategies/${strategy}`)
-        .then(res => res.json())
-        .then(data => setStrategyDetails(data))
-        .catch(err => console.error('Error fetching strategy:', err));
+      fetch(`${API_BASE}/api/screener/strategies/${strategy}`, {
+        signal: AbortSignal.timeout(5000)
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('API unavailable');
+          return res.json();
+        })
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          setStrategyDetails(data);
+        })
+        .catch(err => {
+          console.warn('Using mock strategy data:', err.message);
+          setStrategyDetails(MOCK_STRATEGIES[strategy] || MOCK_STRATEGIES['balanced']);
+        });
     }
   }, [strategy, isLoading]);
 

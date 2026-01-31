@@ -2,9 +2,47 @@ import { useState, useEffect } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Mock analysis generator for when API is unavailable
+const generateMockAnalysis = (symbol) => {
+  const score = 50 + Math.floor(Math.random() * 40);
+  const isPositive = score > 60;
+  return {
+    symbol,
+    confidenceScore: score,
+    rating: score >= 70 ? 'Strong' : score >= 50 ? 'Moderate' : 'Weak',
+    signal: {
+      action: isPositive ? 'BUY' : 'HOLD',
+      strength: score >= 70 ? 'Strong' : 'Moderate',
+      reasons: [
+        isPositive ? 'RSI indicates oversold conditions' : 'RSI in neutral zone',
+        'Volume above average',
+        'Price near support level'
+      ]
+    },
+    technicalScore: 45 + Math.floor(Math.random() * 40),
+    fundamentalScore: 50 + Math.floor(Math.random() * 35),
+    technicals: {
+      rsi: 35 + Math.floor(Math.random() * 30),
+      sma20: 'Above',
+      sma50: isPositive ? 'Above' : 'Below',
+      macdSignal: isPositive ? 'Bullish' : 'Neutral',
+      volumeTrend: 'Increasing'
+    },
+    fundamentals: {
+      peRatio: 15 + Math.random() * 20,
+      pbRatio: 2 + Math.random() * 3,
+      marketCap: '₹' + (100 + Math.floor(Math.random() * 500)) + 'K Cr'
+    },
+    patterns: isPositive ? ['Support bounce', 'Volume breakout'] : ['Consolidation'],
+    timestamp: new Date().toISOString(),
+    isMock: true
+  };
+};
+
 function AnalysisModal({ symbol, onClose }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [usingMock, setUsingMock] = useState(false);
 
   useEffect(() => {
     fetchAnalysis();
@@ -12,12 +50,28 @@ function AnalysisModal({ symbol, onClose }) {
 
   const fetchAnalysis = async () => {
     setLoading(true);
+    setUsingMock(false);
+    
     try {
-      const response = await fetch(`${API_BASE}/api/stock/${symbol}/analyze`);
+      const response = await fetch(`${API_BASE}/api/stock/${symbol}/analyze`, {
+        signal: AbortSignal.timeout(15000)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      
       const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
       setAnalysis(data);
     } catch (error) {
-      console.error('Error fetching analysis:', error);
+      console.warn(`Analysis API failed for ${symbol}, using mock:`, error.message);
+      setAnalysis(generateMockAnalysis(symbol));
+      setUsingMock(true);
     }
     setLoading(false);
   };
@@ -56,12 +110,18 @@ const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=NSE:${symbol}`
             <h2>{symbol} Analysis</h2>
             <div className="modal-timestamp">
               {new Date(analysis.timestamp).toLocaleString()}
+              {usingMock && <span style={{color: '#f59e0b', marginLeft: '10px'}}>(Demo Data)</span>}
             </div>
           </div>
           <button onClick={onClose} className="close-btn">×</button>
         </div>
 
         <div className="modal-content">
+          {usingMock && (
+            <div style={{background: '#fef3c7', color: '#92400e', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontSize: '0.85rem'}}>
+              ⚠️ Backend API unavailable. Showing demo analysis data.
+            </div>
+          )}
           <div className="score-box">
             <div className="score-label">Confidence Score</div>
             <div className={`score-number ${getScoreClass(analysis.confidenceScore)}`}>
