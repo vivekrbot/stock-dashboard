@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import StockCard from './components/StockCard';
 import AnalysisModal from './components/AnalysisModal';
 import SplashScreen from './components/SplashScreen';
@@ -8,6 +8,11 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const defaultWatchlist = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
+  
+  // Stable callback for SplashScreen
+  const handleSplashReady = useCallback(() => {
+    setIsLoading(false);
+  }, []);
   const [watchlist, setWatchlist] = useState(defaultWatchlist);
   const [newSymbol, setNewSymbol] = useState('');
   const [selectedStock, setSelectedStock] = useState(null);
@@ -27,20 +32,20 @@ function App() {
   
   const [scanResults, setScanResults] = useState(null);
 
-  // Show splash screen first
-  if (isLoading) {
-    return <SplashScreen onReady={() => setIsLoading(false)} />;
-  }
-
-  // Fetch strategy details when strategy changes
+  // Fetch strategy details when strategy changes - MUST be before any conditional returns!
   useEffect(() => {
-    if (strategy) {
+    if (!isLoading && strategy) {
       fetch(`${API_BASE}/api/screener/strategies/${strategy}`)
         .then(res => res.json())
         .then(data => setStrategyDetails(data))
         .catch(err => console.error('Error fetching strategy:', err));
     }
-  }, [strategy]);
+  }, [strategy, isLoading]);
+
+  // Show splash screen first - after all hooks
+  if (isLoading) {
+    return <SplashScreen onReady={handleSplashReady} />;
+  }
 
   const addStock = (e) => {
     e.preventDefault();

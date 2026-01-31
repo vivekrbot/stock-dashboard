@@ -13,22 +13,36 @@ function SplashScreen({ onReady }) {
   };
 
   useEffect(() => {
+    let isMounted = true;
+    
+    const safeSetState = (setter, value) => {
+      if (isMounted) setter(value);
+    };
+    
+    const safeAddLog = (message, type = 'info') => {
+      if (isMounted) {
+        const timestamp = new Date().toLocaleTimeString();
+        setLogs(prev => [...prev, { message, type, timestamp }]);
+      }
+    };
+
     const initializeApp = async () => {
       try {
         // Step 1: Initialize
-        addLog('🚀 Initializing Stock Dashboard...', 'info');
-        setProgress(10);
+        safeAddLog('🚀 Initializing Stock Dashboard...', 'info');
+        safeSetState(setProgress, 10);
         await new Promise(r => setTimeout(r, 500));
+        if (!isMounted) return;
 
         // Step 2: Check Backend
-        addLog('📡 Connecting to backend server...', 'info');
-        setProgress(30);
+        safeAddLog('📡 Connecting to backend server...', 'info');
+        safeSetState(setProgress, 30);
         
         let backendConnected = false;
         let retries = 0;
         const maxRetries = 3;
 
-        while (!backendConnected && retries < maxRetries) {
+        while (!backendConnected && retries < maxRetries && isMounted) {
           try {
             const response = await fetch(`${API_BASE}/api/health`, {
               method: 'GET',
@@ -37,55 +51,64 @@ function SplashScreen({ onReady }) {
             
             if (response.ok) {
               const data = await response.json();
-              addLog(`✅ Backend connected: ${data.message}`, 'success');
+              safeAddLog(`✅ Backend connected: ${data.message}`, 'success');
               backendConnected = true;
             }
           } catch (err) {
             retries++;
             if (retries < maxRetries) {
-              addLog(`⚠️ Connection attempt ${retries}/${maxRetries} failed, retrying...`, 'warning');
+              safeAddLog(`⚠️ Connection attempt ${retries}/${maxRetries} failed, retrying...`, 'warning');
               await new Promise(r => setTimeout(r, 1000));
             }
           }
         }
 
+        if (!isMounted) return;
+
         if (!backendConnected) {
-          addLog('❌ Backend connection failed. Using offline mode.', 'error');
+          safeAddLog('❌ Backend connection failed. Using offline mode.', 'error');
         }
 
-        setProgress(50);
+        safeSetState(setProgress, 50);
 
         // Step 3: Load Frontend Assets
-        addLog('🎨 Loading frontend components...', 'info');
+        safeAddLog('🎨 Loading frontend components...', 'info');
         await new Promise(r => setTimeout(r, 400));
-        setProgress(70);
-        addLog('✅ Frontend loaded successfully', 'success');
+        if (!isMounted) return;
+        safeSetState(setProgress, 70);
+        safeAddLog('✅ Frontend loaded successfully', 'success');
 
         // Step 4: Initialize Services
-        addLog('📊 Initializing stock services...', 'info');
+        safeAddLog('📊 Initializing stock services...', 'info');
         await new Promise(r => setTimeout(r, 300));
-        setProgress(85);
-        addLog('✅ Services ready', 'success');
+        if (!isMounted) return;
+        safeSetState(setProgress, 85);
+        safeAddLog('✅ Services ready', 'success');
 
         // Step 5: Complete
-        setProgress(100);
-        addLog('🎉 All systems operational!', 'success');
+        safeSetState(setProgress, 100);
+        safeAddLog('🎉 All systems operational!', 'success');
         await new Promise(r => setTimeout(r, 500));
+        if (!isMounted) return;
         
-        setStatus('ready');
-        addLog('', 'welcome');
+        safeSetState(setStatus, 'ready');
+        safeAddLog('', 'welcome');
         
         // Wait for welcome message, then proceed
         await new Promise(r => setTimeout(r, 2000));
-        onReady();
+        if (isMounted) onReady();
 
       } catch (error) {
-        addLog(`❌ Error: ${error.message}`, 'error');
-        setStatus('error');
+        safeAddLog(`❌ Error: ${error.message}`, 'error');
+        safeSetState(setStatus, 'error');
       }
     };
 
     initializeApp();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [onReady]);
 
   return (
