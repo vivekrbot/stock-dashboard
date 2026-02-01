@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Icon from './Icon';
 
 const API_BASE = '/api';
 
@@ -38,10 +39,10 @@ function MarketStatus() {
 
   const getStatusIcon = () => {
     switch (status.status) {
-      case 'OPEN': return '🟢';
-      case 'PRE_MARKET': return '🟡';
-      case 'HOLIDAY': return '🏖️';
-      default: return '🔴';
+      case 'OPEN': return <Icon name="circle" size={12} style={{ color: '#22c55e' }} filled />;
+      case 'PRE_MARKET': return <Icon name="circle" size={12} style={{ color: '#eab308' }} filled />;
+      case 'HOLIDAY': return <Icon name="beach_access" size={16} style={{ color: '#f97316' }} />;
+      default: return <Icon name="circle" size={12} style={{ color: '#ef4444' }} filled />;
     }
   };
 

@@ -22,12 +22,12 @@ function SplashScreen({ onReady }) {
 
     const initializeApp = async () => {
       try {
-        addLog('🚀 Initializing Stock Dashboard...', 'info');
+        addLog('[INIT] Initializing Stock Dashboard...', 'info');
         setProgress(10);
         await delay(400);
         if (!isMounted) return;
 
-        addLog('📡 Connecting to backend server...', 'info');
+        addLog('[NET] Connecting to backend server...', 'info');
         setProgress(30);
         
         try {
@@ -36,29 +36,29 @@ function SplashScreen({ onReady }) {
           });
           if (response.ok) {
             const data = await response.json();
-            addLog(`✅ Backend connected: ${data.message}`, 'success');
+            addLog(`[OK] Backend connected: ${data.message}`, 'success');
           } else {
-            addLog('⚠️ Backend returned error', 'warning');
+            addLog('[WARN] Backend returned error', 'warning');
           }
         } catch (err) {
-          addLog('⚠️ Backend not available - continuing anyway', 'warning');
+          addLog('[WARN] Backend not available - continuing anyway', 'warning');
         }
 
         if (!isMounted) return;
         setProgress(60);
         await delay(300);
 
-        addLog('🎨 Loading frontend components...', 'info');
+        addLog('[UI] Loading frontend components...', 'info');
         setProgress(80);
         await delay(300);
         if (!isMounted) return;
-        addLog('✅ Frontend loaded', 'success');
+        addLog('[OK] Frontend loaded', 'success');
 
-        addLog('📊 Initializing services...', 'info');
+        addLog('[SVC] Initializing services...', 'info');
         setProgress(100);
         await delay(300);
         if (!isMounted) return;
-        addLog('🎉 All systems ready!', 'success');
+        addLog('[OK] All systems ready!', 'success');
         
         await delay(400);
         if (!isMounted) return;
@@ -73,7 +73,7 @@ function SplashScreen({ onReady }) {
 
       } catch (error) {
         console.error('Splash error:', error);
-        addLog(`❌ Error: ${error.message}`, 'error');
+        addLog(`[ERR] Error: ${error.message}`, 'error');
         await delay(2000);
         if (isMounted && onReady) {
           onReady();

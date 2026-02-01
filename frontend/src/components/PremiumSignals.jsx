@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
+import Icon from './Icon';
+import LastUpdated from './LastUpdated';
 
 const API_BASE = '/api';
 const CARDS_PER_PAGE = 10;
@@ -7,18 +9,25 @@ const CARDS_PER_PAGE = 10;
 /**
  * Premium Signals Component
  * Shows only high-quality, verified trading signals
+ * Now uses centralized cache - data persists across tab switches
  */
-function PremiumSignals({ onAddToWatchlist }) {
+function PremiumSignals({ onAddToWatchlist, onAddToRiskCalc, cachedData = {}, onUpdateCache = () => {} }) {
   const toast = useToast();
-  const [signals, setSignals] = useState([]);
-  const [loading, setLoading] = useState(false);
+  
+  // Use cached data if available, otherwise use local state
+  const signals = cachedData?.data?.signals || [];
+  const summary = cachedData?.data?.summary || null;
+  const loading = cachedData?.loading ?? false;
+  const lastUpdated = cachedData?.timestamp || null;
+  
   const [error, setError] = useState(null);
-  const [summary, setSummary] = useState(null);
   const [expandedCard, setExpandedCard] = useState(null);
   const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE);
+  const [localLoading, setLocalLoading] = useState(false);
 
   const fetchPremiumSignals = async () => {
-    setLoading(true);
+    setLocalLoading(true);
+    onUpdateCache({ loading: true });
     setError(null);
     
     try {
@@ -26,8 +35,14 @@ function PremiumSignals({ onAddToWatchlist }) {
       if (!response.ok) throw new Error('Failed to fetch premium signals');
       
       const data = await response.json();
-      setSignals(data.signals || []);
-      setSummary(data.summary);
+      
+      // Update cache with fetched data
+      onUpdateCache({ 
+        data: { signals: data.signals || [], summary: data.summary },
+        timestamp: new Date().toISOString(),
+        loading: false 
+      });
+      
       setVisibleCount(CARDS_PER_PAGE);
       
       if (data.signals?.length > 0) {
@@ -37,14 +52,23 @@ function PremiumSignals({ onAddToWatchlist }) {
       }
     } catch (err) {
       setError(err.message);
+      onUpdateCache({ loading: false });
       toast.error(err.message, 'Fetch Failed');
     }
-    setLoading(false);
+    setLocalLoading(false);
   };
 
+  // Check if we have actual data
+  const hasData = signals.length > 0 || summary;
+
+  // Only fetch on initial mount if no data exists
   useEffect(() => {
-    fetchPremiumSignals();
+    if (!hasData && !loading && !localLoading) {
+      fetchPremiumSignals();
+    }
   }, []);
+
+  const isLoading = loading || localLoading;
 
   const getConfidenceColor = (confidence) => {
     if (confidence >= 80) return '#22C55E';
@@ -87,7 +111,7 @@ function PremiumSignals({ onAddToWatchlist }) {
             alignItems: 'center',
             gap: '8px'
           }}>
-            ⭐ Premium AI Signals
+            <Icon name="star" size={20} style={{ color: 'var(--accent-orange)' }} filled /> Premium AI Signals
             <span style={{
               fontSize: '0.7rem',
               padding: '2px 8px',
@@ -98,6 +122,7 @@ function PremiumSignals({ onAddToWatchlist }) {
             }}>
               HIGH ACCURACY
             </span>
+            {lastUpdated && <LastUpdated timestamp={lastUpdated} variant="badge" />}
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Only 70%+ confidence trades with verified indicator alignment
@@ -106,24 +131,24 @@ function PremiumSignals({ onAddToWatchlist }) {
 
         <button
           onClick={fetchPremiumSignals}
-          disabled={loading}
+          disabled={isLoading}
           style={{
             padding: '12px 24px',
-            background: loading ? 'var(--bg-secondary)' : 'linear-gradient(135deg, #F59E0B, #D97706)',
-            color: loading ? 'var(--text-muted)' : 'white',
+            background: isLoading ? 'var(--bg-secondary)' : 'linear-gradient(135deg, #F59E0B, #D97706)',
+            color: isLoading ? 'var(--text-muted)' : 'white',
             border: 'none',
             borderRadius: 'var(--radius-md)',
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
             fontWeight: '700',
             fontSize: '0.9rem'
           }}
         >
-          {loading ? '🔄 Scanning...' : '🎯 Scan for Signals'}
+          {isLoading ? <><Icon name="refresh" size={16} /> Scanning...</> : <><Icon name="gps_fixed" size={16} /> Scan for Signals</>}
         </button>
       </div>
 
       {/* Summary Stats */}
-      {summary && !loading && (
+      {summary && !isLoading && (
         <div style={{
           display: 'flex',
           gap: '24px',
@@ -175,7 +200,7 @@ function PremiumSignals({ onAddToWatchlist }) {
       )}
 
       {/* Loading State */}
-      {loading && (
+      {isLoading && (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div className="spinner" style={{ margin: '0 auto 20px' }}></div>
           <p style={{ color: 'var(--text-muted)' }}>Analyzing 25 stocks with advanced indicators...</p>
@@ -194,7 +219,7 @@ function PremiumSignals({ onAddToWatchlist }) {
           color: 'var(--accent-red)',
           textAlign: 'center'
         }}>
-          ⚠️ {error}
+          <Icon name="warning" size={16} /> {error}
           <button onClick={fetchPremiumSignals} style={{ marginLeft: '12px' }}>Retry</button>
         </div>
       )}
@@ -262,7 +287,7 @@ function PremiumSignals({ onAddToWatchlist }) {
                           background: signal.action === 'BUY' ? '#DCFCE7' : '#FEE2E2',
                           color: signal.action === 'BUY' ? '#16A34A' : '#DC2626'
                         }}>
-                          {signal.action === 'BUY' ? '📈' : '📉'} {signal.action}
+                          <Icon name={signal.action === 'BUY' ? 'trending_up' : 'trending_down'} size={14} /> {signal.action}
                         </span>
                       </div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -449,7 +474,7 @@ function PremiumSignals({ onAddToWatchlist }) {
                                 color: item.status === 'pass' ? '#16A34A' : 
                                        item.status === 'warning' ? '#F59E0B' : '#DC2626'
                               }}>
-                                {item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '✗'}
+                                <Icon name={item.status === 'pass' ? 'check' : item.status === 'warning' ? 'warning' : 'close'} size={14} />
                               </span>
                             </div>
                           ))}
@@ -465,11 +490,43 @@ function PremiumSignals({ onAddToWatchlist }) {
                         color: 'var(--text-secondary)',
                         marginBottom: '12px'
                       }}>
-                        💡 {signal.reasoning}
+                        <Icon name="lightbulb" size={16} style={{ color: 'var(--accent-orange)' }} /> {signal.reasoning}
                       </div>
 
                       {/* Actions */}
-                      <div style={{ display: 'flex', gap: '10px' }}>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        {onAddToRiskCalc && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAddToRiskCalc({
+                                symbol: signal.symbol,
+                                entry: signal.entry,
+                                target: signal.target,
+                                stopLoss: signal.stopLoss,
+                                action: signal.action,
+                                confidence: signal.confidence
+                              });
+                            }}
+                            style={{
+                              flex: 1,
+                              minWidth: '140px',
+                              padding: '10px',
+                              background: 'linear-gradient(135deg, var(--accent-orange), #ff6b35)',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <Icon name="calculate" size={16} /> Calculate Risk
+                          </button>
+                        )}
                         {onAddToWatchlist && (
                           <button
                             onClick={(e) => {
@@ -478,15 +535,20 @@ function PremiumSignals({ onAddToWatchlist }) {
                             }}
                             style={{
                               flex: 1,
+                              minWidth: '140px',
                               padding: '10px',
                               background: 'var(--bg-secondary)',
                               border: '1px solid var(--border-light)',
                               borderRadius: 'var(--radius-sm)',
                               cursor: 'pointer',
-                              fontWeight: '600'
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px'
                             }}
                           >
-                            ⭐ Add to Watchlist
+                            <Icon name="bookmark_add" size={16} /> Add to Watchlist
                           </button>
                         )}
                         <a
@@ -496,6 +558,7 @@ function PremiumSignals({ onAddToWatchlist }) {
                           onClick={(e) => e.stopPropagation()}
                           style={{
                             flex: 1,
+                            minWidth: '140px',
                             padding: '10px',
                             background: 'var(--accent-primary)',
                             border: 'none',
@@ -503,10 +566,14 @@ function PremiumSignals({ onAddToWatchlist }) {
                             color: 'white',
                             fontWeight: '600',
                             textDecoration: 'none',
-                            textAlign: 'center'
+                            textAlign: 'center',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
                           }}
                         >
-                          📈 View Chart
+                          <Icon name="show_chart" size={16} /> View Chart
                         </a>
                       </div>
                     </div>
@@ -547,7 +614,7 @@ function PremiumSignals({ onAddToWatchlist }) {
           textAlign: 'center',
           color: 'var(--text-muted)'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}>🔍</div>
+          <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}><Icon name="search" size={48} /></div>
           <p style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>
             No premium signals found
           </p>
@@ -567,7 +634,7 @@ function PremiumSignals({ onAddToWatchlist }) {
         color: 'var(--text-muted)',
         textAlign: 'center'
       }}>
-        ⚠️ Premium signals are based on advanced technical analysis using multiple indicators.
+        <Icon name="info" size={14} /> Premium signals are based on advanced technical analysis using multiple indicators.
         Always verify with your own research. This is not financial advice.
       </div>
     </div>

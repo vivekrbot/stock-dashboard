@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import Icon from './Icon';
+import LastUpdated from './LastUpdated';
 
 const API_BASE = '/api';
 
@@ -136,7 +138,7 @@ function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
           onClick={() => onChart && onChart(symbol)} 
           className="btn-secondary"
         >
-          📈 Chart
+          <Icon name="show_chart" size={16} /> Chart
         </button>
         <button 
           onClick={() => onAnalyze(symbol)} 
@@ -148,12 +150,10 @@ function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
 
       {lastRefresh && (
         <div style={{ 
-          fontSize: '0.7rem', 
-          color: 'var(--text-muted)', 
           textAlign: 'center',
           marginTop: '12px'
         }}>
-          Updated {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          <LastUpdated timestamp={lastRefresh.toISOString()} variant="inline" />
         </div>
       )}
     </div>

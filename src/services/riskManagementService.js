@@ -60,54 +60,127 @@ class RiskManagementService {
 
   /**
    * Calculate comprehensive trade risk metrics
+   * Supports both BUY (entry < stopLoss makes no sense, entry > stopLoss) 
+   * and SELL signals (entry < stopLoss)
    */
   calculateTradeRisk(trade) {
-    const {
-      entryPrice,
-      targetPrice,
-      stopLoss,
-      currentPrice = entryPrice,
-      capital,
-      shares
-    } = trade;
+    // Support both naming conventions from frontend
+    const entryPrice = trade.entryPrice || trade.entry;
+    const targetPrice = trade.targetPrice || trade.target;
+    const stopLoss = trade.stopLoss;
+    const currentPrice = trade.currentPrice || entryPrice;
+    const capital = trade.capital;
+    const riskPercent = trade.riskPercent || this.defaultConfig.maxRiskPerTrade;
+    
+    // Validate inputs
+    if (!entryPrice || !stopLoss || !targetPrice || !capital) {
+      return {
+        error: 'Missing required parameters',
+        potentialProfit: null,
+        potentialLoss: null,
+        profitPercent: null,
+        lossPercent: null,
+        riskRewardRatio: 0,
+        capitalAtRisk: null,
+        currentPnL: null,
+        currentPnLPercent: null,
+        distanceToStop: null,
+        distanceToTarget: null,
+        riskScore: 50,
+        riskLevel: 'moderate',
+        recommendation: 'Please fill in all trade parameters'
+      };
+    }
 
-    // Basic calculations
+    // Determine trade direction: SELL if stopLoss > entry, BUY otherwise
+    const isSellTrade = stopLoss > entryPrice;
+    
+    // Calculate risk per share (always positive)
+    const riskPerShare = Math.abs(entryPrice - stopLoss);
+    
+    // Calculate maximum risk amount based on capital and risk percent
+    const maxRiskAmount = (capital * riskPercent) / 100;
+    
+    // Calculate optimal position size (shares)
+    let shares = trade.shares;
+    if (!shares || shares <= 0) {
+      shares = Math.floor(maxRiskAmount / riskPerShare);
+    }
+    
+    // Ensure we have at least 1 share
+    if (shares < 1) shares = 1;
+    
+    // Calculate position value
+    const positionValue = shares * entryPrice;
+    
+    // For SELL trades: profit when price goes DOWN, loss when price goes UP
+    // For BUY trades: profit when price goes UP, loss when price goes DOWN
     const potentialProfit = Math.abs(targetPrice - entryPrice) * shares;
-    const potentialLoss = Math.abs(entryPrice - stopLoss) * shares;
+    const potentialLoss = riskPerShare * shares;
     const riskRewardRatio = potentialLoss > 0 ? potentialProfit / potentialLoss : 0;
 
-    // Percentage calculations
-    const profitPercent = ((targetPrice - entryPrice) / entryPrice) * 100;
-    const lossPercent = ((entryPrice - stopLoss) / entryPrice) * 100;
+    // Percentage calculations (accounting for trade direction)
+    let profitPercent, lossPercent;
+    if (isSellTrade) {
+      // SELL: profit when target < entry, loss when stopLoss > entry
+      profitPercent = ((entryPrice - targetPrice) / entryPrice) * 100;
+      lossPercent = ((stopLoss - entryPrice) / entryPrice) * 100;
+    } else {
+      // BUY: profit when target > entry, loss when entry > stopLoss
+      profitPercent = ((targetPrice - entryPrice) / entryPrice) * 100;
+      lossPercent = ((entryPrice - stopLoss) / entryPrice) * 100;
+    }
+    
     const capitalAtRisk = (potentialLoss / capital) * 100;
 
     // Current P&L if in trade
-    const currentPnL = (currentPrice - entryPrice) * shares;
-    const currentPnLPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+    let currentPnL, currentPnLPercent;
+    if (isSellTrade) {
+      currentPnL = (entryPrice - currentPrice) * shares;
+    } else {
+      currentPnL = (currentPrice - entryPrice) * shares;
+    }
+    currentPnLPercent = (currentPnL / positionValue) * 100;
 
-    // Distance to stop/target
-    const distanceToStop = ((currentPrice - stopLoss) / currentPrice) * 100;
-    const distanceToTarget = ((targetPrice - currentPrice) / currentPrice) * 100;
+    // Distance to stop/target (always show as positive percentages)
+    let distanceToStop, distanceToTarget;
+    if (isSellTrade) {
+      distanceToStop = ((stopLoss - currentPrice) / currentPrice) * 100;
+      distanceToTarget = ((currentPrice - targetPrice) / currentPrice) * 100;
+    } else {
+      distanceToStop = ((currentPrice - stopLoss) / currentPrice) * 100;
+      distanceToTarget = ((targetPrice - currentPrice) / currentPrice) * 100;
+    }
 
     // Risk score (0-100, higher = riskier)
     const riskScore = this.calculateRiskScore({
       capitalAtRisk,
       riskRewardRatio,
-      lossPercent,
-      distanceToStop
+      lossPercent: Math.abs(lossPercent),
+      distanceToStop: Math.abs(distanceToStop)
     });
 
     return {
+      // Position sizing
+      shares,
+      positionValue: Math.round(positionValue),
+      tradeDirection: isSellTrade ? 'SELL' : 'BUY',
+      
+      // Risk/Reward
       potentialProfit: Math.round(potentialProfit),
       potentialLoss: Math.round(potentialLoss),
-      profitPercent: Math.round(profitPercent * 100) / 100,
-      lossPercent: Math.round(lossPercent * 100) / 100,
-      riskRewardRatio: Math.round(riskRewardRatio * 10) / 10,
+      profitPercent: Math.round(Math.abs(profitPercent) * 100) / 100,
+      lossPercent: Math.round(Math.abs(lossPercent) * 100) / 100,
+      riskRewardRatio: Math.round(riskRewardRatio * 100) / 100,
       capitalAtRisk: Math.round(capitalAtRisk * 100) / 100,
+      
+      // Current status
       currentPnL: Math.round(currentPnL),
       currentPnLPercent: Math.round(currentPnLPercent * 100) / 100,
-      distanceToStop: Math.round(distanceToStop * 100) / 100,
-      distanceToTarget: Math.round(distanceToTarget * 100) / 100,
+      distanceToStop: Math.round(Math.abs(distanceToStop) * 100) / 100,
+      distanceToTarget: Math.round(Math.abs(distanceToTarget) * 100) / 100,
+      
+      // Risk assessment
       riskScore,
       riskLevel: this.getRiskLevel(riskScore),
       recommendation: this.getTradeRiskRecommendation(riskScore, riskRewardRatio)

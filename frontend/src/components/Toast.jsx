@@ -3,31 +3,31 @@ import { useState, useEffect, createContext, useContext, useCallback } from 'rea
 // Toast Context
 const ToastContext = createContext(null);
 
-// Toast types with icons and colors
+// Toast types with Material icons and colors
 const TOAST_CONFIG = {
   success: {
-    icon: '✓',
+    icon: 'check',
     bgColor: '#DCFCE7',
     borderColor: '#22C55E',
     textColor: '#166534',
     iconBg: '#22C55E'
   },
   error: {
-    icon: '✕',
+    icon: 'close',
     bgColor: '#FEE2E2',
     borderColor: '#EF4444',
     textColor: '#991B1B',
     iconBg: '#EF4444'
   },
   warning: {
-    icon: '!',
+    icon: 'warning',
     bgColor: '#FEF3C7',
     borderColor: '#F59E0B',
     textColor: '#92400E',
     iconBg: '#F59E0B'
   },
   info: {
-    icon: 'ℹ',
+    icon: 'info',
     bgColor: '#DBEAFE',
     borderColor: '#3B82F6',
     textColor: '#1E40AF',
@@ -83,11 +83,11 @@ function ToastItem({ toast, onRemove }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '12px',
-        fontWeight: '700',
         flexShrink: 0
       }}>
-        {config.icon}
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+          {config.icon}
+        </span>
       </div>
 
       {/* Content */}

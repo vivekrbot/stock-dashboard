@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Icon from './Icon';
 
 const API_BASE = '/api';
 
@@ -57,7 +58,7 @@ function AnalysisModal({ symbol, onClose }) {
             <button onClick={onClose} className="close-btn">×</button>
           </div>
           <div style={{ padding: '30px', textAlign: 'center', color: 'var(--accent-red)' }}>
-            ❌ Failed to load analysis: {error}
+            <Icon name="error" size={20} /> Failed to load analysis: {error}
           </div>
           <button onClick={fetchAnalysis} className="analyze-btn" style={{ margin: '0 20px 20px' }}>
             Retry
@@ -128,13 +129,13 @@ function AnalysisModal({ symbol, onClose }) {
           </div>
 
           <div className="recommendation-box">
-            <div className="label">💡 Recommendation</div>
+            <div className="label"><Icon name="lightbulb" size={18} /> Recommendation</div>
             <div>{analysis.recommendation}</div>
           </div>
 
           <div className="chart-wrapper">
             <div className="chart-title-row">
-              <h3>📈 View Live Chart</h3>
+              <h3><Icon name="candlestick_chart" size={20} /> View Live Chart</h3>
             </div>
             <a 
               href={tradingViewUrl} 

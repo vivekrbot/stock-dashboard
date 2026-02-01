@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from './Toast';
+import Icon from './Icon';
 
 const STORAGE_KEY = 'stock-dashboard-watchlists';
 
@@ -236,7 +237,7 @@ function WatchlistManager({ currentStocks, onWatchlistChange, onStocksChange }) 
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '1rem'
-                }}>📋</div>
+                }}><Icon name="list_alt" size={20} /></div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontWeight: '600' }}>{activeWatchlist?.name || 'Select Watchlist'}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -458,7 +459,7 @@ function WatchlistManager({ currentStocks, onWatchlistChange, onStocksChange }) 
           color: 'var(--text-muted)'
         }}>
           <span>
-            📊 {Object.keys(watchlists).length} watchlist{Object.keys(watchlists).length > 1 ? 's' : ''}
+            <Icon name="folder" size={14} /> {Object.keys(watchlists).length} watchlist{Object.keys(watchlists).length > 1 ? 's' : ''}
           </span>
           <span>•</span>
           <span>

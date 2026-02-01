@@ -10,6 +10,7 @@ import MarketIntelligence from './components/MarketIntelligence';
 import PremiumSignals from './components/PremiumSignals';
 import RiskCalculator from './components/RiskCalculator';
 import { useToast } from './components/Toast';
+import Icon from './components/Icon';
 
 const API_BASE = '/api';
 const CARDS_PER_PAGE = 10;
@@ -17,10 +18,10 @@ const SECTORS = ['IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 'Metals', 
 const DEFAULT_WATCHLIST = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
 
 const TABS = [
-  { id: 'dashboard', label: '📊 Dashboard', description: 'Screener & Watchlist' },
-  { id: 'signals', label: '⭐ Premium Signals', description: 'AI High-Quality Picks' },
-  { id: 'intelligence', label: '🧠 Market Intel', description: 'Sentiment & Analysis' },
-  { id: 'risk', label: '📊 Risk Calculator', description: 'Position Sizing' }
+  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', description: 'Screener & Watchlist' },
+  { id: 'signals', icon: 'star', label: 'Premium Signals', description: 'AI High-Quality Picks' },
+  { id: 'intelligence', icon: 'psychology', label: 'Market Intel', description: 'Sentiment & Analysis' },
+  { id: 'risk', icon: 'calculate', label: 'Risk Calculator', description: 'Position Sizing' }
 ];
 
 function App() {
@@ -49,6 +50,9 @@ function App() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [chartStock, setChartStock] = useState(null);
   
+  // Risk Calculator prefill state
+  const [riskCalcPrefill, setRiskCalcPrefill] = useState(null);
+  
   // Screener state
   const [scanning, setScanning] = useState(false);
   const [scanResults, setScanResults] = useState(null);
@@ -65,6 +69,49 @@ function App() {
     maxPrice: '',
     sectorLeadersOnly: false
   });
+
+  // ==========================================
+  // CENTRALIZED DATA CACHE
+  // Data is cached and only refreshed on explicit action (scan/refresh button)
+  // ==========================================
+  const [dataCache, setDataCache] = useState({
+    premiumSignals: { data: null, timestamp: null, loading: false },
+    opportunities: { data: null, timestamp: null, loading: false, scanType: 'all' },
+    marketIntelligence: { data: null, timestamp: null, loading: false }
+  });
+
+  // Update cache helper
+  const updateCache = useCallback((key, updates) => {
+    setDataCache(prev => ({
+      ...prev,
+      [key]: { ...prev[key], ...updates }
+    }));
+  }, []);
+
+  // Handlers defined before any conditional returns (Rules of Hooks)
+  const handleAddToWatchlist = useCallback((symbol) => {
+    if (watchlist.includes(symbol)) {
+      toast.warning(`${symbol} is already in your watchlist`);
+      return;
+    }
+    setWatchlist(prev => [...prev, symbol]);
+    setRefreshKey(prev => prev + 1);
+    toast.success(`${symbol} added to watchlist`, 'Stock Added');
+  }, [watchlist, toast]);
+
+  // Handler for adding stock to risk calculator with prefilled data
+  const handleAddToRiskCalc = useCallback((stockData) => {
+    setRiskCalcPrefill({
+      symbol: stockData.symbol,
+      entry: stockData.entry || stockData.currentPrice,
+      stopLoss: stockData.stopLoss,
+      target: stockData.target,
+      action: stockData.action,
+      confidence: stockData.confidence
+    });
+    setActiveTab('risk');
+    toast.success(`${stockData.symbol} added to Risk Calculator`, 'Trade Setup');
+  }, [toast]);
 
   // Fetch strategy details
   useEffect(() => {
@@ -101,16 +148,6 @@ function App() {
     setWatchlist(prev => prev.filter(s => s !== symbol));
     toast.info(`${symbol} removed from watchlist`);
   };
-
-  const handleAddToWatchlist = useCallback((symbol) => {
-    if (watchlist.includes(symbol)) {
-      toast.warning(`${symbol} is already in your watchlist`);
-      return;
-    }
-    setWatchlist(prev => [...prev, symbol]);
-    setRefreshKey(prev => prev + 1);
-    toast.success(`${symbol} added to watchlist`, 'Stock Added');
-  }, [watchlist, toast]);
 
   const handleFindOpportunities = async () => {
     setScanning(true);
@@ -187,7 +224,7 @@ function App() {
     <div className="container">
       {/* Header */}
       <header className="header">
-        <h1>📊 Advanced Stock Screener</h1>
+        <h1><Icon name="analytics" size={28} /> Advanced Stock Screener</h1>
         <p>Strategy-Based Analysis • Pattern Recognition • Sector Intelligence</p>
       </header>
 
@@ -202,7 +239,7 @@ function App() {
             onClick={() => setActiveTab(tab.id)}
             className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
           >
-            <div>{tab.label}</div>
+            <div><Icon name={tab.icon} size={18} /> {tab.label}</div>
             <div className="nav-tab-desc">{tab.description}</div>
           </button>
         ))}
@@ -210,12 +247,27 @@ function App() {
 
       {/* Tab Content */}
       {activeTab === 'signals' && (
-        <PremiumSignals onAddToWatchlist={handleAddToWatchlist} />
+        <PremiumSignals 
+          onAddToWatchlist={handleAddToWatchlist}
+          onAddToRiskCalc={handleAddToRiskCalc}
+          cachedData={dataCache.premiumSignals}
+          onUpdateCache={(updates) => updateCache('premiumSignals', updates)}
+        />
       )}
 
-      {activeTab === 'intelligence' && <MarketIntelligence />}
+      {activeTab === 'intelligence' && (
+        <MarketIntelligence 
+          cachedData={dataCache.marketIntelligence}
+          onUpdateCache={(updates) => updateCache('marketIntelligence', updates)}
+        />
+      )}
 
-      {activeTab === 'risk' && <RiskCalculator />}
+      {activeTab === 'risk' && (
+        <RiskCalculator 
+          prefillData={riskCalcPrefill}
+          onClearPrefill={() => setRiskCalcPrefill(null)}
+        />
+      )}
 
       {activeTab === 'dashboard' && (
         <>
@@ -223,6 +275,9 @@ function App() {
           <TradingOpportunities 
             watchlist={watchlist}
             onAddToWatchlist={handleAddToWatchlist}
+            onAddToRiskCalc={handleAddToRiskCalc}
+            cachedData={dataCache.opportunities}
+            onUpdateCache={(updates) => updateCache('opportunities', updates)}
           />
 
           {/* Watchlist Manager */}
@@ -425,7 +480,7 @@ function App() {
             </>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">📈</div>
+              <div className="empty-icon"><Icon name="trending_up" size={48} /></div>
               <div className="empty-title">Your watchlist is empty</div>
               <div className="empty-subtitle">Select a strategy and click "Find Opportunities"</div>
             </div>

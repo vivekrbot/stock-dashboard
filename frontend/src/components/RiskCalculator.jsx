@@ -1,22 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from './Toast';
+import Icon from './Icon';
 
 const API_BASE = '/api';
 
 /**
  * Risk Calculator Component
  * Position sizing, trade risk calculation, portfolio management
+ * Now supports prefilled data from signals
  */
-function RiskCalculator() {
+function RiskCalculator({ prefillData, onClearPrefill }) {
   const toast = useToast();
   const [accountSize, setAccountSize] = useState(100000);
   const [riskPercent, setRiskPercent] = useState(2);
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [target, setTarget] = useState('');
+  const [selectedStock, setSelectedStock] = useState(null);
   const [calculation, setCalculation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [dailyRisk, setDailyRisk] = useState(null);
+  const prevPrefillRef = useRef(null);
+
+  // Handle prefill data from signals
+  useEffect(() => {
+    if (prefillData && prefillData !== prevPrefillRef.current) {
+      prevPrefillRef.current = prefillData;
+      setEntryPrice(prefillData.entry?.toString() || '');
+      setStopLoss(prefillData.stopLoss?.toString() || '');
+      setTarget(prefillData.target?.toString() || '');
+      setSelectedStock({
+        symbol: prefillData.symbol,
+        action: prefillData.action,
+        confidence: prefillData.confidence
+      });
+      // Clear the prefill after applying
+      if (onClearPrefill) {
+        setTimeout(() => onClearPrefill(), 100);
+      }
+    }
+  }, [prefillData, onClearPrefill]);
 
   // Calculate position size when inputs change
   const calculateRisk = async () => {
@@ -99,7 +122,7 @@ function RiskCalculator() {
           alignItems: 'center',
           gap: '8px'
         }}>
-          📊 Risk Calculator
+          <Icon name="calculate" size={20} style={{ color: 'var(--accent-blue)' }} /> Risk Calculator
           <span style={{
             fontSize: '0.7rem',
             padding: '2px 8px',
@@ -136,6 +159,56 @@ function RiskCalculator() {
             Trade Parameters
           </h3>
 
+          {/* Selected Stock Banner */}
+          {selectedStock && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px',
+              marginBottom: '16px',
+              background: selectedStock.action === 'SELL' 
+                ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05))'
+                : 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05))',
+              borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${selectedStock.action === 'SELL' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon 
+                  name={selectedStock.action === 'SELL' ? 'trending_down' : 'trending_up'} 
+                  size={20} 
+                  style={{ color: selectedStock.action === 'SELL' ? 'var(--accent-red)' : 'var(--accent-green)' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '1rem' }}>{selectedStock.symbol}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {selectedStock.action || 'BUY'} Signal • {selectedStock.confidence || 'High'} Confidence
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedStock(null);
+                  setEntryPrice('');
+                  setStopLoss('');
+                  setTarget('');
+                  setCalculation(null);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  background: 'transparent',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                <Icon name="close" size={14} /> Clear
+              </button>
+            </div>
+          )}
+
           {/* Account Size */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{ 
@@ -144,7 +217,7 @@ function RiskCalculator() {
               color: 'var(--text-muted)',
               marginBottom: '6px'
             }}>
-              💰 Account Size (₹)
+              <Icon name="account_balance_wallet" size={16} /> Account Size (₹)
             </label>
             <input
               type="number"
@@ -254,7 +327,7 @@ function RiskCalculator() {
               color: 'var(--text-muted)',
               marginBottom: '6px'
             }}>
-              🎯 Target Price (₹)
+              <Icon name="gps_fixed" size={16} /> Target Price (₹)
             </label>
             <input
               type="number"
@@ -357,10 +430,10 @@ function RiskCalculator() {
                   fontWeight: '700',
                   color: 'var(--accent-orange)'
                 }}>
-                  {calculation.positionSize} shares
+                  {calculation.shares || 0} shares
                 </div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Investment: ₹{calculation.investment?.toLocaleString()}
+                  Investment: ₹{(calculation.positionValue || 0).toLocaleString()}
                 </div>
               </div>
 
@@ -385,7 +458,7 @@ function RiskCalculator() {
                     fontWeight: '700',
                     color: 'var(--accent-red)'
                   }}>
-                    ₹{calculation.maxRisk?.toLocaleString()}
+                    ₹{(calculation.potentialLoss || 0).toLocaleString()}
                   </div>
                 </div>
                 <div style={{
@@ -402,7 +475,7 @@ function RiskCalculator() {
                     fontWeight: '700',
                     color: 'var(--accent-green)'
                   }}>
-                    ₹{calculation.potentialProfit?.toLocaleString()}
+                    ₹{(calculation.potentialProfit || 0).toLocaleString()}
                   </div>
                 </div>
                 <div style={{
@@ -418,7 +491,7 @@ function RiskCalculator() {
                     fontSize: '1.2rem', 
                     fontWeight: '700'
                   }}>
-                    {calculation.riskPercent?.toFixed(2)}%
+                    {calculation.lossPercent?.toFixed(2) || '0.00'}%
                   </div>
                 </div>
                 <div style={{
@@ -434,7 +507,7 @@ function RiskCalculator() {
                     fontSize: '1.2rem', 
                     fontWeight: '700'
                   }}>
-                    {calculation.rewardPercent?.toFixed(2)}%
+                    {calculation.profitPercent?.toFixed(2) || '0.00'}%
                   </div>
                 </div>
               </div>
@@ -491,10 +564,10 @@ function RiskCalculator() {
                   color: 'var(--text-secondary)'
                 }}>
                   {calculation.riskRewardRatio >= 2 ? 
-                    '✅ Excellent R:R - Good to proceed' :
+                    <><Icon name="check_circle" size={14} filled /> Excellent R:R - Good to proceed</> :
                     calculation.riskRewardRatio >= 1.5 ?
-                    '⚠️ Acceptable R:R - Consider with caution' :
-                    '❌ Poor R:R - Not recommended'}
+                    <><Icon name="warning" size={14} /> Acceptable R:R - Consider with caution</> :
+                    <><Icon name="cancel" size={14} /> Poor R:R - Not recommended</>}
                 </div>
               </div>
 
@@ -520,7 +593,7 @@ function RiskCalculator() {
                     background: '#DCFCE7',
                     borderRadius: 'var(--radius-sm)'
                   }}>
-                    <span>🎯 If Target Hit:</span>
+                    <span><Icon name="gps_fixed" size={16} /> If Target Hit:</span>
                     <span style={{ fontWeight: '700', color: '#16A34A' }}>
                       +₹{calculation.potentialProfit?.toLocaleString()}
                     </span>
@@ -535,7 +608,7 @@ function RiskCalculator() {
                   }}>
                     <span>🛑 If Stop Loss Hit:</span>
                     <span style={{ fontWeight: '700', color: '#DC2626' }}>
-                      -₹{calculation.maxRisk?.toLocaleString()}
+                      -₹{(calculation.potentialLoss || 0).toLocaleString()}
                     </span>
                   </div>
                   <div style={{
@@ -546,7 +619,7 @@ function RiskCalculator() {
                     background: 'var(--bg-primary)',
                     borderRadius: 'var(--radius-sm)'
                   }}>
-                    <span>📊 Breakeven Point:</span>
+                    <span><Icon name="show_chart" size={16} /> Breakeven Point:</span>
                     <span style={{ fontWeight: '700' }}>
                       ₹{entryPrice}
                     </span>
@@ -563,7 +636,7 @@ function RiskCalculator() {
               color: 'var(--text-muted)'
             }}>
               <div style={{ fontSize: '2.5rem', marginBottom: '12px', opacity: 0.5 }}>
-                📊
+                <Icon name="calculate" size={40} />
               </div>
               <p>Enter trade parameters to see calculations</p>
             </div>
@@ -631,7 +704,7 @@ function RiskCalculator() {
                 Status
               </div>
               <div style={{ fontSize: '1.1rem', fontWeight: '700' }}>
-                {dailyRisk.passed ? '✅ Passed' : '❌ Failed'}
+                {dailyRisk.passed ? <><Icon name="check_circle" size={16} filled /> Passed</> : <><Icon name="cancel" size={16} filled /> Failed</>}
               </div>
             </div>
           </div>
@@ -652,7 +725,7 @@ function RiskCalculator() {
                   gap: '8px',
                   marginBottom: i < dailyRisk.warnings.length - 1 ? '8px' : 0
                 }}>
-                  ⚠️ {warning.message || warning}
+                  <Icon name="warning" size={16} /> {warning.message || warning}
                 </div>
               ))}
             </div>
@@ -667,7 +740,7 @@ function RiskCalculator() {
               fontSize: '0.9rem',
               color: 'var(--text-secondary)'
             }}>
-              💡 {dailyRisk.recommendation}
+              <Icon name="lightbulb" size={16} style={{ color: 'var(--accent-orange)' }} /> {dailyRisk.recommendation}
             </div>
           )}
         </div>
@@ -686,7 +759,7 @@ function RiskCalculator() {
           marginBottom: '12px',
           color: 'var(--text-primary)'
         }}>
-          💡 Risk Management Tips
+          <Icon name="lightbulb" size={18} style={{ color: 'var(--accent-orange)' }} /> Risk Management Tips
         </h4>
         <div style={{
           display: 'grid',
@@ -694,16 +767,16 @@ function RiskCalculator() {
           gap: '12px'
         }}>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            ✓ Never risk more than 2% per trade
+            <Icon name="check" size={14} /> Never risk more than 2% per trade
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            ✓ Aim for minimum 1:2 risk-reward ratio
+            <Icon name="check" size={14} /> Aim for minimum 1:2 risk-reward ratio
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            ✓ Limit daily losses to 5% of capital
+            <Icon name="check" size={14} /> Limit daily losses to 5% of capital
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            ✓ Maximum 5 open positions at once
+            <Icon name="check" size={14} /> Maximum 5 open positions at once
           </div>
         </div>
       </div>

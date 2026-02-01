@@ -1,21 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
+import Icon from './Icon';
+import LastUpdated from './LastUpdated';
 
 const API_BASE = '/api';
 const CARDS_PER_PAGE = 10;
 
-function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
+/**
+ * Trading Opportunities Component
+ * Now uses centralized cache - data persists across tab switches
+ */
+function TradingOpportunities({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, cachedData = {}, onUpdateCache = () => {} }) {
   const toast = useToast();
-  const [opportunities, setOpportunities] = useState([]);
-  const [loading, setLoading] = useState(false);
+  
+  // Use cached data if available
+  const opportunities = cachedData?.data?.opportunities || [];
+  const scanStats = cachedData?.data?.scanStats || null;
+  const loading = cachedData?.loading ?? false;
+  const lastUpdated = cachedData?.timestamp || null;
+  const cachedScanType = cachedData?.scanType || 'all';
+  
   const [error, setError] = useState(null);
-  const [scanType, setScanType] = useState('all');
+  const [scanType, setScanType] = useState(cachedScanType);
   const [expandedCard, setExpandedCard] = useState(null);
-  const [scanStats, setScanStats] = useState(null);
   const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE);
+  const [localLoading, setLocalLoading] = useState(false);
 
   const scanForOpportunities = async (type = scanType) => {
-    setLoading(true);
+    setLocalLoading(true);
+    onUpdateCache({ loading: true });
     setError(null);
     
     try {
@@ -39,13 +52,21 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
       if (!response.ok) throw new Error('Failed to fetch opportunities');
       
       const data = await response.json();
-      setOpportunities(data.opportunities || []);
-      setScanStats({
+      const stats = {
         scanned: data.scannedCount,
         found: data.opportunitiesFound,
         total: data.totalFound || data.opportunitiesFound,
         timestamp: data.timestamp
+      };
+      
+      // Update cache with fetched data
+      onUpdateCache({ 
+        data: { opportunities: data.opportunities || [], scanStats: stats },
+        timestamp: new Date().toISOString(),
+        loading: false,
+        scanType: type
       });
+      
       setVisibleCount(CARDS_PER_PAGE);
       
       if (data.opportunities?.length > 0) {
@@ -53,14 +74,30 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
       }
     } catch (err) {
       setError(err.message);
+      onUpdateCache({ loading: false });
       toast.error(err.message, 'Scan Failed');
     }
-    setLoading(false);
+    setLocalLoading(false);
   };
 
+  // Check if we have actual data
+  const hasData = opportunities.length > 0 || scanStats;
+
+  // Only fetch on initial mount if no data exists
   useEffect(() => {
-    scanForOpportunities();
+    if (!hasData && !loading && !localLoading) {
+      scanForOpportunities();
+    }
   }, []);
+
+  // Handle scan type change
+  const handleScanTypeChange = (type) => {
+    setScanType(type);
+    // Fetch new data when scan type changes
+    scanForOpportunities(type);
+  };
+
+  const isLoading = loading || localLoading;
 
   const getConfidenceColor = (confidence) => {
     if (confidence >= 75) return 'var(--accent-green)';
@@ -69,7 +106,7 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
   };
 
   const getTypeIcon = (type) => {
-    return type === 'bullish' ? '📈' : '📉';
+    return type === 'bullish' ? <Icon name="trending_up" size={16} /> : <Icon name="trending_down" size={16} />;
   };
 
   const getActionColor = (action) => {
@@ -109,7 +146,8 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
             alignItems: 'center',
             gap: '10px'
           }}>
-            🎯 AI Trading Opportunities
+            <Icon name="gps_fixed" size={20} style={{ color: 'var(--accent-orange)' }} /> AI Trading Opportunities
+            {lastUpdated && <LastUpdated timestamp={lastUpdated} variant="badge" />}
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Pattern-based predictions with entry, target & stop-loss
@@ -125,17 +163,14 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
             padding: '4px'
           }}>
             {[
-              { id: 'all', label: 'All' },
-              { id: 'bullish', label: '📈 Buy' },
-              { id: 'bearish', label: '📉 Sell' },
-              ...(watchlist.length > 0 ? [{ id: 'watchlist', label: '⭐ Watchlist' }] : [])
+              { id: 'all', label: 'All', icon: null },
+              { id: 'bullish', label: 'Buy', icon: 'trending_up' },
+              { id: 'bearish', label: 'Sell', icon: 'trending_down' },
+              ...(watchlist.length > 0 ? [{ id: 'watchlist', label: 'Watchlist', icon: 'bookmark' }] : [])
             ].map(type => (
               <button
                 key={type.id}
-                onClick={() => {
-                  setScanType(type.id);
-                  scanForOpportunities(type.id);
-                }}
+                onClick={() => handleScanTypeChange(type.id)}
                 style={{
                   padding: '8px 16px',
                   border: 'none',
@@ -157,28 +192,28 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
           {/* Scan Button */}
           <button
             onClick={() => scanForOpportunities()}
-            disabled={loading}
+            disabled={isLoading}
             style={{
               padding: '10px 20px',
-              background: loading ? 'var(--bg-secondary)' : 'var(--accent-primary)',
-              color: loading ? 'var(--text-muted)' : 'white',
+              background: isLoading ? 'var(--bg-secondary)' : 'var(--accent-primary)',
+              color: isLoading ? 'var(--text-muted)' : 'white',
               border: 'none',
               borderRadius: 'var(--radius-sm)',
               fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
               fontSize: '0.9rem'
             }}
           >
-            {loading ? (
+            {isLoading ? (
               <>
                 <span className="spinner" style={{ width: '16px', height: '16px' }}></span>
                 Scanning...
               </>
             ) : (
-              <>🔍 Scan Now</>
+              <><Icon name="search" size={16} /> Scan Now</>
             )}
           </button>
         </div>
@@ -196,16 +231,11 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
           fontSize: '0.85rem',
           color: 'var(--text-secondary)'
         }}>
-          <span>📊 Scanned: <strong style={{ color: 'var(--text-primary)' }}>{scanStats.scanned}</strong> stocks</span>
-          <span>🎯 {scanStats.total > scanStats.found 
+          <span><Icon name="analytics" size={16} /> Scanned: <strong style={{ color: 'var(--text-primary)' }}>{scanStats.scanned}</strong> stocks</span>
+          <span><Icon name="gps_fixed" size={16} /> {scanStats.total > scanStats.found 
             ? <>Showing: <strong style={{ color: 'var(--accent-green)' }}>{scanStats.found}</strong> of <strong>{scanStats.total}</strong> opportunities</>
             : <>Found: <strong style={{ color: 'var(--accent-green)' }}>{scanStats.found}</strong> opportunities</>
           }</span>
-          {lastScan && (
-            <span style={{ marginLeft: 'auto' }}>
-              Last scan: {lastScan.toLocaleTimeString('en-IN')}
-            </span>
-          )}
         </div>
       )}
 
@@ -219,7 +249,7 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
           textAlign: 'center',
           marginBottom: '20px'
         }}>
-          ⚠️ {error}
+          <Icon name="warning" size={16} /> {error}
           <button 
             onClick={() => scanForOpportunities()}
             style={{
@@ -488,7 +518,7 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
                       color: 'var(--text-secondary)',
                       lineHeight: '1.5'
                     }}>
-                      💡 {opp.reasoning}
+                      <Icon name="lightbulb" size={16} style={{ color: 'var(--accent-orange)' }} /> {opp.reasoning}
                     </div>
                   )}
 
@@ -518,8 +548,41 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
                   <div style={{
                     display: 'flex',
                     gap: '10px',
-                    marginTop: '16px'
+                    marginTop: '16px',
+                    flexWrap: 'wrap'
                   }}>
+                    {onAddToRiskCalc && opp.entry && opp.stopLoss && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddToRiskCalc({
+                            symbol: opp.symbol,
+                            entry: opp.entry,
+                            target: opp.target,
+                            stopLoss: opp.stopLoss,
+                            action: opp.action,
+                            confidence: opp.confidence
+                          });
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: '140px',
+                          padding: '10px',
+                          background: 'linear-gradient(135deg, var(--accent-orange), #ff6b35)',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'white',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Icon name="calculate" size={16} /> Calculate Risk
+                      </button>
+                    )}
                     {onAddToWatchlist && (
                       <button
                         onClick={(e) => {
@@ -528,16 +591,21 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
                         }}
                         style={{
                           flex: 1,
+                          minWidth: '140px',
                           padding: '10px',
                           background: 'var(--bg-secondary)',
                           border: '1px solid var(--border-light)',
                           borderRadius: 'var(--radius-sm)',
                           color: 'var(--text-primary)',
                           fontWeight: '600',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
                         }}
                       >
-                        ⭐ Add to Watchlist
+                        <Icon name="bookmark_add" size={16} /> Add to Watchlist
                       </button>
                     )}
                     <a
@@ -547,6 +615,7 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
                       onClick={(e) => e.stopPropagation()}
                       style={{
                         flex: 1,
+                        minWidth: '140px',
                         padding: '10px',
                         background: 'var(--accent-primary)',
                         border: 'none',
@@ -555,10 +624,14 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
                         fontWeight: '600',
                         cursor: 'pointer',
                         textDecoration: 'none',
-                        textAlign: 'center'
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
                       }}
                     >
-                      📈 View Chart
+                      <Icon name="show_chart" size={16} /> View Chart
                     </a>
                   </div>
                 </div>
@@ -610,7 +683,7 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
           textAlign: 'center',
           color: 'var(--text-muted)'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}>🔍</div>
+          <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}><Icon name="search" size={48} /></div>
           <p style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>No opportunities found</p>
           <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>
             Try scanning again or change the filter type
@@ -628,7 +701,7 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
         color: 'var(--text-muted)',
         textAlign: 'center'
       }}>
-        ⚠️ AI predictions are based on technical pattern analysis and historical data. 
+        <Icon name="info" size={14} /> AI predictions are based on technical pattern analysis and historical data. 
         This is not financial advice. Always do your own research before trading.
       </div>
     </div>

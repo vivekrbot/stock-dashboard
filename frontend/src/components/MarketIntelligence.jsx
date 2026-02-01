@@ -1,27 +1,42 @@
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
+import Icon from './Icon';
+import LastUpdated from './LastUpdated';
 
 const API_BASE = '/api';
 
 /**
  * Market Intelligence Dashboard
  * Shows market sentiment, sector rotation, and trading conditions
+ * Now uses centralized cache - data persists across tab switches
  */
-function MarketIntelligence() {
+function MarketIntelligence({ cachedData = {}, onUpdateCache = () => {} }) {
   const toast = useToast();
-  const [sentiment, setSentiment] = useState(null);
+  
+  // Use cached data if available, with fallbacks
+  const sentiment = cachedData?.data?.sentiment || null;
+  const conditions = cachedData?.data?.conditions || null;
+  const fearGreed = cachedData?.data?.fearGreed || null;
+  const loading = cachedData?.loading ?? false;
+  const lastUpdated = cachedData?.timestamp || null;
+  
   const [sectors, setSectors] = useState(null);
-  const [conditions, setConditions] = useState(null);
-  const [fearGreed, setFearGreed] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
 
+  // Check if we have actual data loaded
+  const hasData = sentiment || conditions || fearGreed;
+
+  // Only fetch on initial mount if no cached data exists
   useEffect(() => {
-    fetchMarketData();
+    if (!hasData && !loading && !localLoading) {
+      fetchMarketData();
+    }
   }, []);
 
   const fetchMarketData = async () => {
-    setLoading(true);
+    setLocalLoading(true);
+    onUpdateCache({ loading: true });
     setError(null);
     
     try {
@@ -31,27 +46,36 @@ function MarketIntelligence() {
         fetch(`${API_BASE}/market/fear-greed`)
       ]);
 
+      let sentimentData = null;
+      let conditionsData = null;
+      let fearGreedData = null;
+
       if (sentimentRes.ok) {
-        const data = await sentimentRes.json();
-        setSentiment(data);
+        sentimentData = await sentimentRes.json();
       }
 
       if (conditionsRes.ok) {
-        const data = await conditionsRes.json();
-        setConditions(data);
+        conditionsData = await conditionsRes.json();
       }
 
       if (fearGreedRes.ok) {
-        const data = await fearGreedRes.json();
-        setFearGreed(data);
+        fearGreedData = await fearGreedRes.json();
       }
+
+      // Update cache with fetched data
+      onUpdateCache({ 
+        data: { sentiment: sentimentData, conditions: conditionsData, fearGreed: fearGreedData },
+        timestamp: new Date().toISOString(),
+        loading: false 
+      });
 
       toast.success('Market data updated', 'Refresh Complete');
     } catch (err) {
       setError(err.message);
+      onUpdateCache({ loading: false });
       toast.error('Failed to fetch market data');
     }
-    setLoading(false);
+    setLocalLoading(false);
   };
 
   const fetchSectorData = async () => {
@@ -78,14 +102,14 @@ function MarketIntelligence() {
     }
   };
 
-  const getSentimentEmoji = (sentiment) => {
+  const getSentimentIcon = (sentiment) => {
     switch (sentiment) {
-      case 'very_bullish': return '🚀';
-      case 'bullish': return '📈';
-      case 'neutral': return '➡️';
-      case 'bearish': return '📉';
-      case 'very_bearish': return '🔻';
-      default: return '❓';
+      case 'very_bullish': return <Icon name="rocket_launch" size={32} style={{ color: '#22C55E' }} />;
+      case 'bullish': return <Icon name="trending_up" size={32} style={{ color: '#86EFAC' }} />;
+      case 'neutral': return <Icon name="trending_flat" size={32} style={{ color: '#9CA3AF' }} />;
+      case 'bearish': return <Icon name="trending_down" size={32} style={{ color: '#FCA5A5' }} />;
+      case 'very_bearish': return <Icon name="arrow_downward" size={32} style={{ color: '#EF4444' }} />;
+      default: return <Icon name="help" size={32} style={{ color: '#9CA3AF' }} />;
     }
   };
 
@@ -97,7 +121,10 @@ function MarketIntelligence() {
     return '#1E40AF'; // Extreme Fear
   };
 
-  if (loading) {
+  const isLoading = loading || localLoading;
+
+  // Show loading state
+  if (isLoading && !hasData) {
     return (
       <div style={{
         background: 'var(--bg-card)',
@@ -133,9 +160,13 @@ function MarketIntelligence() {
             fontSize: '1.3rem', 
             fontWeight: '700',
             color: 'var(--text-primary)',
-            marginBottom: '4px'
+            marginBottom: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            🧠 Market Intelligence
+            <Icon name="psychology" size={24} style={{ color: 'var(--accent-blue)' }} /> Market Intelligence
+            {lastUpdated && <LastUpdated timestamp={lastUpdated} variant="badge" />}
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Real-time market analysis and trading conditions
@@ -143,16 +174,18 @@ function MarketIntelligence() {
         </div>
         <button
           onClick={fetchMarketData}
+          disabled={isLoading}
           style={{
             padding: '10px 20px',
             background: 'var(--bg-secondary)',
             border: '1px solid var(--border-light)',
             borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-            fontWeight: '600'
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            fontWeight: '600',
+            opacity: isLoading ? 0.6 : 1
           }}
         >
-          🔄 Refresh
+          {isLoading ? <><Icon name="refresh" size={16} /> Loading...</> : <><Icon name="refresh" size={16} /> Refresh</>}
         </button>
       </div>
 
@@ -179,7 +212,7 @@ function MarketIntelligence() {
               gap: '12px',
               marginBottom: '16px'
             }}>
-              <span style={{ fontSize: '2.5rem' }}>{getSentimentEmoji(sentiment.sentiment)}</span>
+              <span style={{ fontSize: '2.5rem' }}>{getSentimentIcon(sentiment.sentiment)}</span>
               <div>
                 <div style={{
                   fontSize: '1.5rem',
@@ -341,7 +374,7 @@ function MarketIntelligence() {
                 justifyContent: 'center',
                 fontSize: '1.5rem'
               }}>
-                {conditions.isFavorable ? '✅' : '⚠️'}
+                {conditions.isFavorable ? <Icon name="check_circle" size={24} filled /> : <Icon name="warning" size={24} />}
               </div>
               <div>
                 <div style={{
@@ -375,7 +408,7 @@ function MarketIntelligence() {
                            factor.status === 'warning' ? 'var(--accent-orange)' : 'var(--accent-red)',
                     fontWeight: '600'
                   }}>
-                    {factor.status === 'positive' ? '✓' : factor.status === 'warning' ? '!' : '✗'}
+                    <Icon name={factor.status === 'positive' ? 'check' : factor.status === 'warning' ? 'warning' : 'close'} size={16} />
                   </span>
                 </div>
               ))}
@@ -416,7 +449,7 @@ function MarketIntelligence() {
               alignItems: 'center',
               gap: '6px'
             }}>
-              📈 Top Gainers
+              <Icon name="trending_up" size={16} /> Top Gainers
             </div>
             {sentiment.topGainers?.map((stock, idx) => (
               <div key={idx} style={{
@@ -446,7 +479,7 @@ function MarketIntelligence() {
               alignItems: 'center',
               gap: '6px'
             }}>
-              📉 Top Losers
+              <Icon name="trending_down" size={16} /> Top Losers
             </div>
             {sentiment.topLosers?.map((stock, idx) => (
               <div key={idx} style={{
@@ -464,14 +497,12 @@ function MarketIntelligence() {
       )}
 
       {/* Last Update */}
-      {lastUpdate && (
+      {lastUpdated && (
         <div style={{
           marginTop: '16px',
-          fontSize: '0.8rem',
-          color: 'var(--text-muted)',
           textAlign: 'center'
         }}>
-          Last updated: {lastUpdate.toLocaleTimeString('en-IN')}
+          <LastUpdated timestamp={lastUpdated} variant="inline" />
         </div>
       )}
     </div>

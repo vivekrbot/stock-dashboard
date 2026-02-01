@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import Icon from './Icon';
 
 const API_BASE = '/api';
 
@@ -253,7 +254,7 @@ function StockChart({ symbol, onClose }) {
               fontSize: '1.2rem'
             }}
           >
-            ✕
+            <Icon name="close" size={20} />
           </button>
         </div>
 
