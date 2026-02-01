@@ -1,78 +1,172 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import StockCard from './components/StockCard';
 import AnalysisModal from './components/AnalysisModal';
 import SplashScreen from './components/SplashScreen';
 import MarketStatus from './components/MarketStatus';
 import StockChart from './components/StockChart';
+import WatchlistManager from './components/WatchlistManager';
+import TradingOpportunities from './components/TradingOpportunities';
+import MarketIntelligence from './components/MarketIntelligence';
+import PremiumSignals from './components/PremiumSignals';
+import RiskCalculator from './components/RiskCalculator';
+import { useToast } from './components/Toast';
+import Icon from './components/Icon';
 
 const API_BASE = '/api';
+const CARDS_PER_PAGE = 10;
+const SECTORS = ['IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 'Metals', 'Telecom', 'Cement', 'Finance'];
+const DEFAULT_WATCHLIST = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
+
+const TABS = [
+  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', description: 'Screener & Watchlist' },
+  { id: 'signals', icon: 'star', label: 'Premium Signals', description: 'AI High-Quality Picks' },
+  { id: 'intelligence', icon: 'psychology', label: 'Market Intel', description: 'Sentiment & Analysis' },
+  { id: 'risk', icon: 'calculate', label: 'Risk Calculator', description: 'Position Sizing' }
+];
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const defaultWatchlist = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
+  const toast = useToast();
   
-  const [watchlist, setWatchlist] = useState(defaultWatchlist);
+  // Core state
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [visibleCards, setVisibleCards] = useState(CARDS_PER_PAGE);
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Watchlist state
+  const [watchlist, setWatchlist] = useState(() => {
+    const saved = localStorage.getItem('stock-dashboard-watchlists');
+    if (saved) {
+      const watchlists = JSON.parse(saved);
+      return watchlists['default']?.stocks || DEFAULT_WATCHLIST;
+    }
+    return DEFAULT_WATCHLIST;
+  });
+  
+  // Form state
   const [newSymbol, setNewSymbol] = useState('');
+  
+  // Modal state
   const [selectedStock, setSelectedStock] = useState(null);
   const [chartStock, setChartStock] = useState(null);
+  
+  // Risk Calculator prefill state
+  const [riskCalcPrefill, setRiskCalcPrefill] = useState(null);
+  
+  // Screener state
   const [scanning, setScanning] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [scanResults, setScanResults] = useState(null);
+  const [strategy, setStrategy] = useState('balanced');
+  const [strategyDetails, setStrategyDetails] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showStrategyDetails, setShowStrategyDetails] = useState(false);
   
-  const [strategy, setStrategy] = useState('balanced');
-  const [strategyDetails, setStrategyDetails] = useState(null);
-  const [capSize, setCapSize] = useState('all');
-  const [sector, setSector] = useState('all');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-  const [sectorLeadersOnly, setSectorLeadersOnly] = useState(false);
-  const [scanResults, setScanResults] = useState(null);
+  // Filter state
+  const [filters, setFilters] = useState({
+    capSize: 'all',
+    sector: 'all',
+    minPrice: '',
+    maxPrice: '',
+    sectorLeadersOnly: false
+  });
 
+  // ==========================================
+  // CENTRALIZED DATA CACHE
+  // Data is cached and only refreshed on explicit action (scan/refresh button)
+  // ==========================================
+  const [dataCache, setDataCache] = useState({
+    premiumSignals: { data: null, timestamp: null, loading: false },
+    opportunities: { data: null, timestamp: null, loading: false, scanType: 'all' },
+    marketIntelligence: { data: null, timestamp: null, loading: false }
+  });
+
+  // Update cache helper
+  const updateCache = useCallback((key, updates) => {
+    setDataCache(prev => ({
+      ...prev,
+      [key]: { ...prev[key], ...updates }
+    }));
+  }, []);
+
+  // Handlers defined before any conditional returns (Rules of Hooks)
+  const handleAddToWatchlist = useCallback((symbol) => {
+    if (watchlist.includes(symbol)) {
+      toast.warning(`${symbol} is already in your watchlist`);
+      return;
+    }
+    setWatchlist(prev => [...prev, symbol]);
+    setRefreshKey(prev => prev + 1);
+    toast.success(`${symbol} added to watchlist`, 'Stock Added');
+  }, [watchlist, toast]);
+
+  // Handler for adding stock to risk calculator with prefilled data
+  const handleAddToRiskCalc = useCallback((stockData) => {
+    setRiskCalcPrefill({
+      symbol: stockData.symbol,
+      entry: stockData.entry || stockData.currentPrice,
+      stopLoss: stockData.stopLoss,
+      target: stockData.target,
+      action: stockData.action,
+      confidence: stockData.confidence
+    });
+    setActiveTab('risk');
+    toast.success(`${stockData.symbol} added to Risk Calculator`, 'Trade Setup');
+  }, [toast]);
+
+  // Fetch strategy details
   useEffect(() => {
     if (!isLoading && strategy) {
       fetch(`${API_BASE}/screener/strategies/${strategy}`)
         .then(res => res.json())
-        .then(data => setStrategyDetails(data))
-        .catch(err => console.error('Failed to load strategy:', err));
+        .then(setStrategyDetails)
+        .catch(() => toast.error('Failed to load strategy details'));
     }
   }, [strategy, isLoading]);
 
+  // Show splash screen
   if (isLoading) {
     return <SplashScreen onReady={() => setIsLoading(false)} />;
   }
 
-  const addStock = (e) => {
+  // Handlers
+  const handleAddStock = (e) => {
     e.preventDefault();
-    if (newSymbol && !watchlist.includes(newSymbol.toUpperCase())) {
-      setWatchlist([...watchlist, newSymbol.toUpperCase()]);
-      setNewSymbol('');
+    const symbol = newSymbol.trim().toUpperCase();
+    if (!symbol) return;
+    
+    if (watchlist.includes(symbol)) {
+      toast.warning(`${symbol} is already in your watchlist`);
+      return;
     }
+    
+    setWatchlist(prev => [...prev, symbol]);
+    setNewSymbol('');
+    toast.success(`${symbol} added to watchlist`, 'Stock Added');
   };
 
-  const removeStock = (symbol) => {
-    setWatchlist(watchlist.filter(s => s !== symbol));
+  const handleRemoveStock = (symbol) => {
+    setWatchlist(prev => prev.filter(s => s !== symbol));
+    toast.info(`${symbol} removed from watchlist`);
   };
 
-  const findOpportunities = async () => {
+  const handleFindOpportunities = async () => {
     setScanning(true);
     setScanResults(null);
+    
     try {
-      const filterPayload = {
-        strategy,
-        capSize,
-        sector: sector === 'all' ? null : sector,
-        maxResults: 8,
-        signalType: 'BUY',
-        minPrice: minPrice ? parseFloat(minPrice) : 0,
-        maxPrice: maxPrice ? parseFloat(maxPrice) : 999999,
-        sectorLeadersOnly
-      };
-
       const response = await fetch(`${API_BASE}/screener/find-opportunities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(filterPayload)
+        body: JSON.stringify({
+          strategy,
+          capSize: filters.capSize,
+          sector: filters.sector === 'all' ? null : filters.sector,
+          maxResults: 8,
+          signalType: 'BUY',
+          minPrice: filters.minPrice ? parseFloat(filters.minPrice) : 0,
+          maxPrice: filters.maxPrice ? parseFloat(filters.maxPrice) : 999999,
+          sectorLeadersOnly: filters.sectorLeadersOnly
+        })
       });
       
       if (!response.ok) {
@@ -83,234 +177,324 @@ function App() {
       const data = await response.json();
       setScanResults(data);
       
-      if (data.opportunities && data.opportunities.length > 0) {
+      if (data.opportunities?.length > 0) {
         setWatchlist(data.opportunities.map(o => o.symbol));
+        setVisibleCards(CARDS_PER_PAGE);
+        toast.success(`Found ${data.totalFound} trading opportunities!`, 'Scan Complete');
       } else {
-        alert('No opportunities found. Try adjusting your filters.');
+        toast.warning('No opportunities found. Try adjusting your filters.');
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert(`Error: ${error.message}`);
+      toast.error(error.message, 'Scan Failed');
     }
+    
     setScanning(false);
   };
 
-  const refreshWatchlist = () => setRefreshKey(prev => prev + 1);
-  const resetToDefault = () => {
-    setWatchlist(defaultWatchlist);
+  const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
-    setScanResults(null);
+    toast.info('Refreshing stock data...');
   };
 
-  const sectors = ['IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 'Metals', 'Telecom', 'Cement', 'Finance'];
+  const handleReset = () => {
+    setWatchlist(DEFAULT_WATCHLIST);
+    setRefreshKey(prev => prev + 1);
+    setScanResults(null);
+    setVisibleCards(CARDS_PER_PAGE);
+    toast.info('Watchlist reset to defaults');
+  };
+
+  const handleWatchlistChange = () => {
+    setRefreshKey(prev => prev + 1);
+    setScanResults(null);
+    setVisibleCards(CARDS_PER_PAGE);
+  };
+
+  const handleStocksChange = (stocks) => {
+    setWatchlist(stocks);
+    setRefreshKey(prev => prev + 1);
+    setVisibleCards(CARDS_PER_PAGE);
+  };
+
+  const updateFilter = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
 
   return (
     <div className="container">
-      <div className="header">
-        <h1>📊 Advanced Stock Screener</h1>
+      {/* Header */}
+      <header className="header">
+        <h1><Icon name="analytics" size={28} /> Advanced Stock Screener</h1>
         <p>Strategy-Based Analysis • Pattern Recognition • Sector Intelligence</p>
-      </div>
+      </header>
 
-      {/* Market Status Banner */}
+      {/* Market Status */}
       <MarketStatus />
 
-      <form onSubmit={addStock} className="add-stock-form">
-        <input
-          type="text"
-          value={newSymbol}
-          onChange={(e) => setNewSymbol(e.target.value)}
-          placeholder="Enter stock symbol (e.g., WIPRO)"
-        />
-        <button type="submit">Add Stock</button>
-      </form>
-
-      {/* Strategy Selector */}
-      <div style={{ marginBottom: '20px', padding: '20px', background: '#1e293b', borderRadius: '8px' }}>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-          <label style={{ fontWeight: 'bold', minWidth: '150px' }}>📈 Trading Strategy:</label>
-          <select 
-            value={strategy}
-            onChange={(e) => setStrategy(e.target.value)}
-            style={{ flex: 1, padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none', fontSize: '1rem' }}
-          >
-            <option value="short-term">⚡ Short-Term (1-7 days) - 80% Technical</option>
-            <option value="balanced">⚖️ Balanced (1-4 weeks) - 60% Technical</option>
-            <option value="long-term">📊 Long-Term (3-12 months) - 40% Technical</option>
-          </select>
+      {/* Navigation Tabs */}
+      <nav className="nav-tabs">
+        {TABS.map(tab => (
           <button
-            onClick={() => setShowStrategyDetails(!showStrategyDetails)}
-            style={{ padding: '10px 20px', borderRadius: '6px', background: '#475569', color: 'white', border: 'none', cursor: 'pointer' }}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
           >
-            {showStrategyDetails ? '▼ Hide' : '▶ Details'}
+            <div><Icon name={tab.icon} size={18} /> {tab.label}</div>
+            <div className="nav-tab-desc">{tab.description}</div>
           </button>
-        </div>
+        ))}
+      </nav>
 
-        {showStrategyDetails && strategyDetails && (
-          <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', marginTop: '15px' }}>
-            <h3 style={{ marginTop: 0, color: '#60a5fa' }}>{strategyDetails.name}</h3>
-            <p style={{ color: '#94a3b8' }}>{strategyDetails.description}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-              <div>
-                <strong>⚖️ Weights:</strong>
-                <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
-                  <div>Technical: <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{(strategyDetails.weights.technical * 100).toFixed(0)}%</span></div>
-                  <div>Fundamental: <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>{(strategyDetails.weights.fundamental * 100).toFixed(0)}%</span></div>
-                </div>
-              </div>
-              <div>
-                <strong>🎯 Min Confidence:</strong>
-                <div style={{ marginTop: '8px' }}>
-                  <span style={{ color: '#eab308', fontWeight: 'bold', fontSize: '1.2rem' }}>{strategyDetails.minConfidence}+</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Advanced Filters */}
-      <div style={{ marginBottom: '20px' }}>
-        <button 
-          onClick={() => setShowFilters(!showFilters)}
-          style={{ padding: '12px 24px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', width: '100%', fontSize: '1rem' }}
-        >
-          {showFilters ? '▼ Hide Advanced Filters' : '▶ Show Advanced Filters'}
-        </button>
-
-        {showFilters && (
-          <div style={{ marginTop: '15px', padding: '20px', background: '#1e293b', borderRadius: '8px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Market Cap</label>
-                <select 
-                  value={capSize}
-                  onChange={(e) => setCapSize(e.target.value)}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
-                >
-                  <option value="all">All Caps</option>
-                  <option value="largeCap">🔵 Large Cap</option>
-                  <option value="midCap">🟡 Mid Cap</option>
-                  <option value="smallCap">🔴 Small Cap</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Sector</label>
-                <select 
-                  value={sector}
-                  onChange={(e) => setSector(e.target.value)}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
-                >
-                  <option value="all">All Sectors</option>
-                  {sectors.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Min Price (₹)</label>
-                <input
-                  type="number"
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
-                  placeholder="0"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Max Price (₹)</label>
-                <input
-                  type="number"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
-                  placeholder="No limit"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
-                />
-              </div>
-            </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={sectorLeadersOnly}
-                onChange={(e) => setSectorLeadersOnly(e.target.checked)}
-                style={{ marginRight: '8px', width: '18px', height: '18px' }}
-              />
-              <span>🏆 Sector Leaders Only</span>
-            </label>
-          </div>
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-        <button 
-          onClick={findOpportunities}
-          disabled={scanning}
-          style={{ flex: 2, padding: '15px', background: scanning ? '#475569' : '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: scanning ? 'not-allowed' : 'pointer' }}
-        >
-          {scanning ? '🔍 Scanning...' : '🎯 Find Opportunities'}
-        </button>
-        <button 
-          onClick={refreshWatchlist}
-          style={{ flex: 1, padding: '15px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}
-        >
-          🔄 Refresh
-        </button>
-        <button 
-          onClick={resetToDefault}
-          style={{ flex: 1, padding: '15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}
-        >
-          🏠 Reset
-        </button>
-      </div>
-
-      {/* Scan Results */}
-      {scanResults && scanResults.strategy && (
-        <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-          <div><strong>📊 Scan Results:</strong> Found <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{scanResults.totalFound}</span> opportunities from <span style={{ color: '#94a3b8' }}>{scanResults.totalScanned}</span> stocks</div>
-          <div style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '10px' }}>
-            Strategy: {scanResults.strategy.name} | Weights: Tech {(scanResults.strategy.weights.technical*100).toFixed(0)}% / Fund {(scanResults.strategy.weights.fundamental*100).toFixed(0)}%
-          </div>
-        </div>
+      {/* Tab Content */}
+      {activeTab === 'signals' && (
+        <PremiumSignals 
+          onAddToWatchlist={handleAddToWatchlist}
+          onAddToRiskCalc={handleAddToRiskCalc}
+          cachedData={dataCache.premiumSignals}
+          onUpdateCache={(updates) => updateCache('premiumSignals', updates)}
+        />
       )}
 
-      {/* Scanning Indicator */}
-      {scanning && (
-        <div style={{ textAlign: 'center', padding: '40px', background: '#1e293b', borderRadius: '8px', marginBottom: '20px' }}>
-          <div className="spinner" style={{ margin: '0 auto 20px' }}></div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '10px' }}>Scanning with {strategyDetails?.name || 'Balanced'} strategy...</div>
-          <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>This may take 30-60 seconds</div>
-        </div>
+      {activeTab === 'intelligence' && (
+        <MarketIntelligence 
+          cachedData={dataCache.marketIntelligence}
+          onUpdateCache={(updates) => updateCache('marketIntelligence', updates)}
+        />
       )}
 
-      {/* Stock Cards */}
-      {watchlist.length > 0 ? (
-        <div className="watchlist-grid">
-          {watchlist.map((symbol) => (
-            <StockCard
-              key={`${symbol}-${refreshKey}`}
-              symbol={symbol}
-              onAnalyze={setSelectedStock}
-              onRemove={removeStock}
-              onChart={setChartStock}
+      {activeTab === 'risk' && (
+        <RiskCalculator 
+          prefillData={riskCalcPrefill}
+          onClearPrefill={() => setRiskCalcPrefill(null)}
+        />
+      )}
+
+      {activeTab === 'dashboard' && (
+        <>
+          {/* AI Trading Opportunities */}
+          <TradingOpportunities 
+            watchlist={watchlist}
+            onAddToWatchlist={handleAddToWatchlist}
+            onAddToRiskCalc={handleAddToRiskCalc}
+            cachedData={dataCache.opportunities}
+            onUpdateCache={(updates) => updateCache('opportunities', updates)}
+          />
+
+          {/* Watchlist Manager */}
+          <WatchlistManager 
+            currentStocks={watchlist}
+            onWatchlistChange={handleWatchlistChange}
+            onStocksChange={handleStocksChange}
+          />
+
+          {/* Add Stock Form */}
+          <form onSubmit={handleAddStock} className="add-stock-form">
+            <input
+              type="text"
+              value={newSymbol}
+              onChange={(e) => setNewSymbol(e.target.value)}
+              placeholder="Enter stock symbol (e.g., WIPRO)"
             />
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">
-          <div className="empty-icon">📈</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '10px' }}>Your watchlist is empty</div>
-          <div>Select a strategy and click "Find Opportunities"</div>
-        </div>
-      )}
+            <button type="submit">Add Stock</button>
+          </form>
 
-      {selectedStock && (
-        <AnalysisModal symbol={selectedStock} onClose={() => setSelectedStock(null)} />
-      )}
+          {/* Strategy Selector */}
+          <section className="card" style={{ marginBottom: '20px' }}>
+            <div className="strategy-row">
+              <label className="strategy-label">Trading Strategy</label>
+              <select 
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value)}
+                className="strategy-select"
+              >
+                <option value="short-term">Short-Term (1-7 days) - 80% Technical</option>
+                <option value="balanced">Balanced (1-4 weeks) - 60% Technical</option>
+                <option value="long-term">Long-Term (3-12 months) - 40% Technical</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowStrategyDetails(!showStrategyDetails)}
+                className="btn-secondary"
+              >
+                {showStrategyDetails ? 'Hide Details' : 'View Details'}
+              </button>
+            </div>
 
-      {chartStock && (
-        <StockChart symbol={chartStock} onClose={() => setChartStock(null)} />
+            {showStrategyDetails && strategyDetails && (
+              <div className="strategy-details">
+                <h3>{strategyDetails.name}</h3>
+                <p>{strategyDetails.description}</p>
+                <div className="strategy-grid">
+                  <div className="strategy-card">
+                    <span className="label">Weights</span>
+                    <div>Technical: <strong className="text-green">{(strategyDetails.weights.technical * 100).toFixed(0)}%</strong></div>
+                    <div>Fundamental: <strong className="text-blue">{(strategyDetails.weights.fundamental * 100).toFixed(0)}%</strong></div>
+                  </div>
+                  <div className="strategy-card">
+                    <span className="label">Min Confidence</span>
+                    <strong className="text-orange text-xl">{strategyDetails.minConfidence}+</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Advanced Filters */}
+          <section style={{ marginBottom: '20px' }}>
+            <button 
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className="btn-filter-toggle"
+            >
+              <span>{showFilters ? '▾' : '▸'}</span>
+              {showFilters ? 'Hide Filters' : 'Advanced Filters'}
+            </button>
+
+            {showFilters && (
+              <div className="filters-panel">
+                <div className="filters-grid">
+                  <div className="filter-group">
+                    <label>Market Cap</label>
+                    <select 
+                      value={filters.capSize}
+                      onChange={(e) => updateFilter('capSize', e.target.value)}
+                    >
+                      <option value="all">All Caps</option>
+                      <option value="largeCap">Large Cap</option>
+                      <option value="midCap">Mid Cap</option>
+                      <option value="smallCap">Small Cap</option>
+                    </select>
+                  </div>
+
+                  <div className="filter-group">
+                    <label>Sector</label>
+                    <select 
+                      value={filters.sector}
+                      onChange={(e) => updateFilter('sector', e.target.value)}
+                    >
+                      <option value="all">All Sectors</option>
+                      {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="filter-group">
+                    <label>Min Price (₹)</label>
+                    <input
+                      type="number"
+                      value={filters.minPrice}
+                      onChange={(e) => updateFilter('minPrice', e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="filter-group">
+                    <label>Max Price (₹)</label>
+                    <input
+                      type="number"
+                      value={filters.maxPrice}
+                      onChange={(e) => updateFilter('maxPrice', e.target.value)}
+                      placeholder="No limit"
+                    />
+                  </div>
+                </div>
+
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.sectorLeadersOnly}
+                    onChange={(e) => updateFilter('sectorLeadersOnly', e.target.checked)}
+                  />
+                  <span>Sector Leaders Only</span>
+                </label>
+              </div>
+            )}
+          </section>
+
+          {/* Action Buttons */}
+          <div className="action-buttons">
+            <button 
+              onClick={handleFindOpportunities}
+              disabled={scanning}
+              className="btn-primary btn-large"
+            >
+              {scanning ? 'Scanning...' : 'Find Opportunities'}
+            </button>
+            <button onClick={handleRefresh} className="btn-secondary">
+              Refresh
+            </button>
+            <button onClick={handleReset} className="btn-danger">
+              Reset
+            </button>
+          </div>
+
+          {/* Scan Results Summary */}
+          {scanResults?.strategy && (
+            <div className="scan-results">
+              <div>
+                <span className="label">Scan Results</span>
+                <div className="scan-count">
+                  Found <span className="text-green">{scanResults.totalFound}</span> opportunities
+                </div>
+              </div>
+              <div className="scan-meta">
+                <div>Scanned {scanResults.totalScanned} stocks</div>
+                <div>Strategy: {scanResults.strategy.name}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Scanning Indicator */}
+          {scanning && (
+            <div className="scanning-indicator">
+              <div className="spinner"></div>
+              <div className="scanning-title">Scanning with {strategyDetails?.name || 'Balanced'} strategy</div>
+              <div className="scanning-subtitle">This may take 30-60 seconds</div>
+            </div>
+          )}
+
+          {/* Stock Cards */}
+          {watchlist.length > 0 ? (
+            <>
+              <div className="watchlist-grid">
+                {watchlist.slice(0, visibleCards).map((symbol) => (
+                  <StockCard
+                    key={`${symbol}-${refreshKey}`}
+                    symbol={symbol}
+                    onAnalyze={setSelectedStock}
+                    onRemove={handleRemoveStock}
+                    onChart={setChartStock}
+                  />
+                ))}
+              </div>
+              
+              {visibleCards < watchlist.length && (
+                <div className="load-more-container">
+                  <button
+                    onClick={() => setVisibleCards(prev => prev + CARDS_PER_PAGE)}
+                    className="load-more-btn"
+                  >
+                    Load More ({watchlist.length - visibleCards} remaining)
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon"><Icon name="trending_up" size={48} /></div>
+              <div className="empty-title">Your watchlist is empty</div>
+              <div className="empty-subtitle">Select a strategy and click "Find Opportunities"</div>
+            </div>
+          )}
+
+          {/* Modals */}
+          {selectedStock && (
+            <AnalysisModal symbol={selectedStock} onClose={() => setSelectedStock(null)} />
+          )}
+
+          {chartStock && (
+            <StockChart symbol={chartStock} onClose={() => setChartStock(null)} />
+          )}
+        </>
       )}
     </div>
   );

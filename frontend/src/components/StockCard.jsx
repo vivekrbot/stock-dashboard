@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import Icon from './Icon';
+import LastUpdated from './LastUpdated';
 
 const API_BASE = '/api';
 
@@ -87,8 +89,8 @@ function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
           <div className="stock-symbol">{symbol}</div>
           <button onClick={() => onRemove(symbol)} className="remove-btn">×</button>
         </div>
-        <div style={{ color: '#ef4444', padding: '20px', textAlign: 'center' }}>
-          ❌ {error}
+        <div style={{ color: 'var(--accent-red)', padding: '20px', textAlign: 'center', fontSize: '0.9rem' }}>
+          {error}
         </div>
         <button onClick={fetchStock} className="analyze-btn">Retry</button>
       </div>
@@ -103,21 +105,16 @@ function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
     <div className="stock-card">
       <div className="stock-header">
         <div>
-          <div className="stock-symbol">
-            {symbol}
+          <div className="stock-symbol">{symbol}</div>
+          <div className="stock-exchange">
+            NSE
             {isLive && (
-              <span style={{
-                display: 'inline-block',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#22c55e',
-                marginLeft: '8px',
-                animation: 'pulse 2s infinite'
-              }} title="Live Data" />
+              <span className="live-badge is-live" style={{ marginLeft: '8px' }}>
+                <span className="live-dot"></span>
+                Live
+              </span>
             )}
           </div>
-          <div className="stock-exchange">NSE {isLive ? '• LIVE' : ''}</div>
         </div>
         <button onClick={() => onRemove(symbol)} className="remove-btn">×</button>
       </div>
@@ -125,54 +122,40 @@ function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
       <div className="stock-price">₹{data.price?.toFixed(2) || 'N/A'}</div>
       
       <div className={`stock-change ${isPositive ? 'positive' : 'negative'}`}>
-        <span>{isPositive ? '↑' : '↓'}</span>
-        <span>{data.change?.toFixed(2)} ({data.percentChange?.toFixed(2)}%)</span>
+        <span>{isPositive ? '▲' : '▼'}</span>
+        <span>{Math.abs(data.change)?.toFixed(2)} ({Math.abs(data.percentChange)?.toFixed(2)}%)</span>
       </div>
 
       <div className="stock-details">
-        <div>High: <span>₹{data.high?.toFixed(2)}</span></div>
-        <div>Low: <span>₹{data.low?.toFixed(2)}</span></div>
-        <div>Open: <span>₹{data.open?.toFixed(2)}</span></div>
-        <div>Prev: <span>₹{data.previousClose?.toFixed(2)}</span></div>
+        <div>High <span>₹{data.high?.toFixed(2)}</span></div>
+        <div>Low <span>₹{data.low?.toFixed(2)}</span></div>
+        <div>Open <span>₹{data.open?.toFixed(2)}</span></div>
+        <div>Prev <span>₹{data.previousClose?.toFixed(2)}</span></div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="card-actions">
         <button 
           onClick={() => onChart && onChart(symbol)} 
-          className="analyze-btn"
-          style={{ flex: 1, background: '#1e293b' }}
+          className="btn-secondary"
         >
-          📈 Chart
+          <Icon name="show_chart" size={16} /> Chart
         </button>
         <button 
           onClick={() => onAnalyze(symbol)} 
-          className="analyze-btn"
-          style={{ flex: 2 }}
+          className="btn-primary"
         >
-          🔍 Analyze
+          Analyze
         </button>
       </div>
 
-      <div style={{ 
-        fontSize: '0.7rem', 
-        color: '#64748b', 
-        textAlign: 'center',
-        marginTop: '8px',
-        display: 'flex',
-        justifyContent: 'space-between'
-      }}>
-        <span>{data.source && `via ${data.source}`}</span>
-        {lastRefresh && (
-          <span>Updated: {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-        )}
-      </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
+      {lastRefresh && (
+        <div style={{ 
+          textAlign: 'center',
+          marginTop: '12px'
+        }}>
+          <LastUpdated timestamp={lastRefresh.toISOString()} variant="inline" />
+        </div>
+      )}
     </div>
   );
 }

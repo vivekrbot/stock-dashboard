@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Icon from './Icon';
 
 const API_BASE = '/api';
 
@@ -56,8 +57,8 @@ function AnalysisModal({ symbol, onClose }) {
             <h2>{symbol} Analysis</h2>
             <button onClick={onClose} className="close-btn">×</button>
           </div>
-          <div style={{ padding: '30px', textAlign: 'center', color: '#ef4444' }}>
-            ❌ Failed to load analysis: {error}
+          <div style={{ padding: '30px', textAlign: 'center', color: 'var(--accent-red)' }}>
+            <Icon name="error" size={20} /> Failed to load analysis: {error}
           </div>
           <button onClick={fetchAnalysis} className="analyze-btn" style={{ margin: '0 20px 20px' }}>
             Retry
@@ -128,13 +129,13 @@ function AnalysisModal({ symbol, onClose }) {
           </div>
 
           <div className="recommendation-box">
-            <div className="label">💡 Recommendation</div>
+            <div className="label"><Icon name="lightbulb" size={18} /> Recommendation</div>
             <div>{analysis.recommendation}</div>
           </div>
 
           <div className="chart-wrapper">
             <div className="chart-title-row">
-              <h3>📈 View Live Chart</h3>
+              <h3><Icon name="candlestick_chart" size={20} /> View Live Chart</h3>
             </div>
             <a 
               href={tradingViewUrl} 
@@ -142,10 +143,10 @@ function AnalysisModal({ symbol, onClose }) {
               rel="noopener noreferrer"
               style={{
                 display: 'block',
-                background: '#2563eb',
+                background: 'var(--accent-primary)',
                 color: 'white',
                 padding: '15px',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-sm)',
                 textAlign: 'center',
                 textDecoration: 'none',
                 fontWeight: '600',
