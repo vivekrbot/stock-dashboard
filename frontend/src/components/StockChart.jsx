@@ -61,7 +61,7 @@ function StockChart({ symbol, onClose }) {
     const chartHeight = height - padding.top - padding.bottom;
 
     // Clear canvas
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
     const history = chartData.history;
@@ -77,17 +77,17 @@ function StockChart({ symbol, onClose }) {
     const firstPrice = prices[0];
     const lastPrice = prices[prices.length - 1];
     const isUp = lastPrice >= firstPrice;
-    const lineColor = isUp ? '#22c55e' : '#ef4444';
-    const fillColor = isUp ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+    const lineColor = isUp ? '#10B981' : '#EF4444';
+    const fillColor = isUp ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)';
 
     // Draw grid
-    ctx.strokeStyle = '#1e293b';
+    ctx.strokeStyle = '#E5E7EB';
     ctx.lineWidth = 1;
     
     // Horizontal grid lines and price labels
     const gridLines = 5;
     ctx.font = '11px system-ui';
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = '#6B7280';
     ctx.textAlign = 'right';
     
     for (let i = 0; i <= gridLines; i++) {
@@ -131,7 +131,7 @@ function StockChart({ symbol, onClose }) {
     ctx.fill();
 
     // Draw date labels
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = '#6B7280';
     ctx.textAlign = 'center';
     
     const labelCount = Math.min(6, history.length);
@@ -197,7 +197,7 @@ function StockChart({ symbol, onClose }) {
       left: 0,
       right: 0,
       bottom: 0,
-      background: 'rgba(0,0,0,0.8)',
+      background: 'rgba(0,0,0,0.4)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -205,32 +205,35 @@ function StockChart({ symbol, onClose }) {
       padding: '20px'
     }} onClick={onClose}>
       <div style={{
-        background: '#0f172a',
-        borderRadius: '16px',
+        background: 'var(--bg-card)',
+        borderRadius: 'var(--radius-lg)',
         width: '100%',
         maxWidth: '900px',
         maxHeight: '90vh',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow-lg)',
+        border: '1px solid var(--border-light)'
       }} onClick={e => e.stopPropagation()}>
         
         {/* Header */}
         <div style={{
           padding: '20px',
-          borderBottom: '1px solid #1e293b',
+          borderBottom: '1px solid var(--border-light)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
           <div>
-            <h2 style={{ margin: 0, color: '#f8fafc' }}>{symbol}</h2>
+            <h2 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: '700' }}>{symbol}</h2>
             {stats && (
               <div style={{ 
-                color: stats.isUp ? '#22c55e' : '#ef4444',
+                color: stats.isUp ? 'var(--accent-green)' : 'var(--accent-red)',
                 fontSize: '0.9rem',
-                marginTop: '4px'
+                marginTop: '4px',
+                fontWeight: '600'
               }}>
                 {stats.isUp ? '▲' : '▼'} ₹{Math.abs(stats.change).toFixed(2)} ({stats.percentChange.toFixed(2)}%)
-                <span style={{ color: '#64748b', marginLeft: '8px' }}>
+                <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontWeight: '400' }}>
                   {ranges.find(r => r.value === range)?.description}
                 </span>
               </div>
@@ -240,12 +243,12 @@ function StockChart({ symbol, onClose }) {
           <button
             onClick={onClose}
             style={{
-              background: '#1e293b',
-              border: 'none',
-              color: '#94a3b8',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-muted)',
               width: '36px',
               height: '36px',
-              borderRadius: '8px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '1.2rem'
             }}
@@ -259,7 +262,8 @@ function StockChart({ symbol, onClose }) {
           padding: '12px 20px',
           display: 'flex',
           gap: '8px',
-          borderBottom: '1px solid #1e293b'
+          borderBottom: '1px solid var(--border-light)',
+          background: 'var(--bg-primary)'
         }}>
           {ranges.map(r => (
             <button
@@ -267,12 +271,12 @@ function StockChart({ symbol, onClose }) {
               onClick={() => setRange(r.value)}
               style={{
                 padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                background: range === r.value ? '#3b82f6' : '#1e293b',
-                color: range === r.value ? '#fff' : '#94a3b8',
+                borderRadius: 'var(--radius-sm)',
+                border: range === r.value ? 'none' : '1px solid var(--border-light)',
+                background: range === r.value ? 'var(--accent-primary)' : 'var(--bg-card)',
+                color: range === r.value ? '#fff' : 'var(--text-secondary)',
                 cursor: 'pointer',
-                fontWeight: range === r.value ? 'bold' : 'normal',
+                fontWeight: range === r.value ? '600' : '500',
                 transition: 'all 0.2s'
               }}
             >
@@ -286,14 +290,15 @@ function StockChart({ symbol, onClose }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              color: '#22c55e',
-              fontSize: '0.85rem'
+              color: 'var(--accent-green)',
+              fontSize: '0.85rem',
+              fontWeight: '600'
             }}>
               <span style={{
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                background: '#22c55e',
+                background: 'var(--accent-green)',
                 animation: 'pulse 2s infinite'
               }} />
               LIVE
@@ -302,14 +307,14 @@ function StockChart({ symbol, onClose }) {
         </div>
 
         {/* Chart Area */}
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '20px', background: 'var(--bg-card)' }}>
           {loading ? (
             <div style={{
               height: '400px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#64748b'
+              color: 'var(--text-muted)'
             }}>
               Loading chart data...
             </div>
@@ -319,7 +324,7 @@ function StockChart({ symbol, onClose }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ef4444'
+              color: 'var(--accent-red)'
             }}>
               {error}
             </div>
@@ -329,7 +334,8 @@ function StockChart({ symbol, onClose }) {
               style={{
                 width: '100%',
                 height: '400px',
-                borderRadius: '8px'
+                borderRadius: 'var(--radius-sm)',
+                background: '#fff'
               }}
             />
           )}
@@ -339,22 +345,22 @@ function StockChart({ symbol, onClose }) {
         {chartData?.marketStatus && (
           <div style={{
             padding: '12px 20px',
-            borderTop: '1px solid #1e293b',
-            background: '#0f172a',
+            borderTop: '1px solid var(--border-light)',
+            background: 'var(--bg-primary)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             fontSize: '0.85rem'
           }}>
-            <span style={{ color: '#64748b' }}>
+            <span style={{ color: 'var(--text-muted)' }}>
               Market: <span style={{ 
-                color: chartData.marketStatus.isOpen ? '#22c55e' : '#ef4444',
-                fontWeight: 'bold'
+                color: chartData.marketStatus.isOpen ? 'var(--accent-green)' : 'var(--accent-red)',
+                fontWeight: '600'
               }}>
                 {chartData.marketStatus.status}
               </span>
             </span>
-            <span style={{ color: '#64748b' }}>
+            <span style={{ color: 'var(--text-muted)' }}>
               Data source: {chartData?.meta?.source || 'Unknown'}
             </span>
           </div>

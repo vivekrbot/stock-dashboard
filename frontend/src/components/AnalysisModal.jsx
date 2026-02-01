@@ -56,7 +56,7 @@ function AnalysisModal({ symbol, onClose }) {
             <h2>{symbol} Analysis</h2>
             <button onClick={onClose} className="close-btn">×</button>
           </div>
-          <div style={{ padding: '30px', textAlign: 'center', color: '#ef4444' }}>
+          <div style={{ padding: '30px', textAlign: 'center', color: 'var(--accent-red)' }}>
             ❌ Failed to load analysis: {error}
           </div>
           <button onClick={fetchAnalysis} className="analyze-btn" style={{ margin: '0 20px 20px' }}>
@@ -142,10 +142,10 @@ function AnalysisModal({ symbol, onClose }) {
               rel="noopener noreferrer"
               style={{
                 display: 'block',
-                background: '#2563eb',
+                background: 'var(--accent-primary)',
                 color: 'white',
                 padding: '15px',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-sm)',
                 textAlign: 'center',
                 textDecoration: 'none',
                 fontWeight: '600',

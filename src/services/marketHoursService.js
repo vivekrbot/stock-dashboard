@@ -118,22 +118,19 @@ async function checkLiveMarket() {
     });
     
     if (data?.data) {
-      // Check if we have recent price updates (within last 5 minutes)
+      // Check market state from Moneycontrol response
       const priceData = data.data;
-      const lastUpdate = priceData.lastupd || priceData.lastUpdatedTime;
+      const marketState = priceData.marketState || priceData.mktState || '';
       
-      if (lastUpdate) {
-        // Moneycontrol returns data - market is accessible
-        // Check if the market state indicates trading
-        const marketState = priceData.marketState || priceData.mktState || '';
-        const isLive = marketState.toLowerCase().includes('open') || 
-                       marketState.toLowerCase().includes('live') ||
-                       marketState === '' && priceData.pricecurrent; // Has current price
-        
-        console.log(`📊 Moneycontrol market check: ${marketState || 'HAS_DATA'} → ${isLive ? 'LIVE' : 'CLOSED'}`);
-        liveMarketCache = { isLive, lastCheck: Date.now() };
-        return isLive;
-      }
+      // Only consider market OPEN if marketState explicitly indicates it
+      // Note: Moneycontrol always returns price data even when market is closed,
+      // so we can't rely on pricecurrent existence to determine market status
+      const isLive = marketState.toLowerCase().includes('open') || 
+                     marketState.toLowerCase().includes('live');
+      
+      console.log(`📊 Moneycontrol market check: ${marketState || 'NO_STATE'} → ${isLive ? 'LIVE' : 'CLOSED'}`);
+      liveMarketCache = { isLive, lastCheck: Date.now() };
+      return isLive;
     }
   } catch (e) {
     console.error('Moneycontrol market check failed:', e.message);
@@ -163,10 +160,16 @@ async function checkLiveMarket() {
       req.on('timeout', () => { req.destroy(); resolve(null); });
     });
     
-    if (indexData?.data?.pricecurrent) {
-      console.log('📊 NIFTY data available - market likely OPEN');
-      liveMarketCache = { isLive: true, lastCheck: Date.now() };
-      return true;
+    if (indexData?.data) {
+      // Check for explicit market state in index data
+      const marketState = indexData.data.marketState || indexData.data.mktState || '';
+      if (marketState.toLowerCase().includes('open') || marketState.toLowerCase().includes('live')) {
+        console.log('📊 NIFTY index indicates market OPEN');
+        liveMarketCache = { isLive: true, lastCheck: Date.now() };
+        return true;
+      }
+      // Don't assume market is open just because price data exists
+      console.log('📊 NIFTY index data available but no live market state');
     }
   } catch (e) {
     // Ignore

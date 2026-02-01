@@ -68,79 +68,66 @@ function MarketStatus() {
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-      borderRadius: '12px',
-      padding: '16px 20px',
+      background: 'var(--bg-card)',
+      borderRadius: 'var(--radius-md)',
+      padding: '16px 24px',
       marginBottom: '20px',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
       flexWrap: 'wrap',
-      gap: '12px',
-      border: `1px solid ${getStatusColor()}33`
+      gap: '16px',
+      border: '1px solid var(--border-light)',
+      boxShadow: 'var(--shadow-sm)'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span style={{ fontSize: '1.5rem' }}>{getStatusIcon()}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ 
+          width: '48px',
+          height: '48px',
+          borderRadius: 'var(--radius-sm)',
+          background: status.isOpen ? '#DCFCE7' : 'var(--bg-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '1.4rem'
+        }}>
+          {getStatusIcon()}
+        </div>
         <div>
           <div style={{ 
-            fontWeight: 'bold', 
-            color: getStatusColor(),
-            fontSize: '1.1rem'
+            fontWeight: '700', 
+            color: 'var(--text-primary)',
+            fontSize: '1rem',
+            marginBottom: '2px'
           }}>
-            NSE/BSE {status.status === 'OPEN' ? 'LIVE' : status.status.replace('_', '-')}
+            NSE/BSE {status.status === 'OPEN' ? 'Live' : status.status.replace('_', ' ')}
           </div>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             {status.message}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
         {status.isOpen ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Closes at</div>
-            <div style={{ color: '#f8fafc', fontWeight: 'bold' }}>{formatTime(status.nextEvent)}</div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Closes at</div>
+            <div style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{formatTime(status.nextEvent)}</div>
           </div>
         ) : (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Opens</div>
-            <div style={{ color: '#f8fafc', fontWeight: 'bold' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opens</div>
+            <div style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
               {formatDate(status.nextEvent)} {formatTime(status.nextEvent)}
             </div>
           </div>
         )}
 
-        <div style={{ 
-          background: status.isOpen ? '#22c55e22' : '#ef444422',
-          padding: '8px 16px',
-          borderRadius: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: getStatusColor(),
-            animation: status.isOpen ? 'pulse 2s infinite' : 'none'
-          }} />
-          <span style={{ 
-            color: getStatusColor(), 
-            fontWeight: 'bold',
-            fontSize: '0.85rem'
-          }}>
-            {status.isOpen ? 'LIVE DATA' : 'LAST CLOSE'}
-          </span>
+        <div className={`live-badge ${status.isOpen ? 'is-live' : 'is-closed'}`}>
+          {status.isOpen && <span className="live-dot"></span>}
+          <span>{status.isOpen ? 'Live' : 'Closed'}</span>
         </div>
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
     </div>
   );
 }

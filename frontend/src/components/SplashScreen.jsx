@@ -89,26 +89,26 @@ function SplashScreen({ onReady }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      background: 'linear-gradient(135deg, #F8F6F3 0%, #FFFFFF 50%, #F0EDE8 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      color: '#fff',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      color: '#1A2332',
       padding: '20px'
     }}>
       <div style={{ marginBottom: '40px', textAlign: 'center' }}>
         <h1 style={{ 
-          fontSize: '3rem', 
+          fontSize: '2.5rem', 
           margin: 0,
-          background: 'linear-gradient(90deg, #00d4ff, #7c3aed)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
+          fontWeight: '700',
+          color: '#1A2332',
+          letterSpacing: '-0.02em'
         }}>
-          📈 Stock Dashboard
+          Stock Dashboard
         </h1>
-        <p style={{ color: '#94a3b8', marginTop: '10px', fontSize: '1.1rem' }}>
+        <p style={{ color: '#6B7280', marginTop: '10px', fontSize: '1rem' }}>
           Advanced NSE Stock Analysis & Screener
         </p>
       </div>
@@ -116,42 +116,44 @@ function SplashScreen({ onReady }) {
       <div style={{
         width: '100%',
         maxWidth: '500px',
-        height: '8px',
-        background: '#1e293b',
-        borderRadius: '4px',
+        height: '6px',
+        background: '#E5E7EB',
+        borderRadius: '100px',
         overflow: 'hidden',
         marginBottom: '30px'
       }}>
         <div style={{
           width: `${progress}%`,
           height: '100%',
-          background: 'linear-gradient(90deg, #00d4ff, #7c3aed)',
-          transition: 'width 0.3s ease-out'
+          background: 'linear-gradient(90deg, #F97316, #EA580C)',
+          transition: 'width 0.3s ease-out',
+          borderRadius: '100px'
         }} />
       </div>
 
       <div style={{
         width: '100%',
         maxWidth: '600px',
-        background: '#0d1117',
-        borderRadius: '12px',
+        background: '#FFFFFF',
+        borderRadius: '16px',
         padding: '20px',
-        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-        fontSize: '0.9rem',
-        border: '1px solid #30363d',
-        minHeight: '200px'
+        fontFamily: "'SF Mono', 'JetBrains Mono', Consolas, monospace",
+        fontSize: '0.85rem',
+        border: '1px solid #E5E7EB',
+        minHeight: '200px',
+        boxShadow: '0 4px 24px rgba(26, 35, 50, 0.08)'
       }}>
         <div style={{ 
           display: 'flex', 
           gap: '8px', 
           marginBottom: '15px',
           paddingBottom: '10px',
-          borderBottom: '1px solid #21262d'
+          borderBottom: '1px solid #F3F4F6'
         }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff5f56' }} />
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ffbd2e' }} />
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#27c93f' }} />
-          <span style={{ marginLeft: '10px', color: '#8b949e', fontSize: '0.8rem' }}>Terminal</span>
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#EF4444' }} />
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#F59E0B' }} />
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#10B981' }} />
+          <span style={{ marginLeft: '10px', color: '#9CA3AF', fontSize: '0.75rem' }}>Terminal</span>
         </div>
 
         {logs.map((log, idx) => (
@@ -159,15 +161,15 @@ function SplashScreen({ onReady }) {
             <div key={idx} style={{
               textAlign: 'center',
               padding: '20px',
-              background: 'linear-gradient(135deg, rgba(0,212,255,0.1), rgba(124,58,237,0.1))',
-              borderRadius: '8px',
+              background: 'linear-gradient(135deg, rgba(249,115,22,0.08), rgba(234,88,12,0.08))',
+              borderRadius: '12px',
               marginTop: '15px'
             }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '10px' }}>👋</div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#00d4ff' }}>
+              <div style={{ fontSize: '1.2rem', fontWeight: '700', color: '#1A2332' }}>
                 Welcome Mr. Vivek!
               </div>
-              <div style={{ color: '#94a3b8', marginTop: '8px', fontSize: '0.85rem' }}>
+              <div style={{ color: '#6B7280', marginTop: '8px', fontSize: '0.85rem' }}>
                 Your stock dashboard is ready
               </div>
             </div>
@@ -176,19 +178,19 @@ function SplashScreen({ onReady }) {
               marginBottom: '8px',
               display: 'flex',
               gap: '10px',
-              color: log.type === 'success' ? '#22c55e' : 
-                     log.type === 'error' ? '#ef4444' : 
-                     log.type === 'warning' ? '#f59e0b' : '#e6edf3'
+              color: log.type === 'success' ? '#10B981' : 
+                     log.type === 'error' ? '#EF4444' : 
+                     log.type === 'warning' ? '#F59E0B' : '#374151'
             }}>
-              <span style={{ color: '#6e7681', minWidth: '70px' }}>{log.timestamp}</span>
+              <span style={{ color: '#9CA3AF', minWidth: '70px' }}>{log.timestamp}</span>
               <span>{log.message}</span>
             </div>
           )
         ))}
         
         {status === 'initializing' && logs.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#00d4ff', marginTop: '8px' }}>
-            <span style={{ color: '#6e7681' }}>{new Date().toLocaleTimeString()}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#F97316', marginTop: '8px' }}>
+            <span style={{ color: '#9CA3AF' }}>{new Date().toLocaleTimeString()}</span>
             <span style={{ animation: 'blink 1s infinite' }}>█</span>
           </div>
         )}

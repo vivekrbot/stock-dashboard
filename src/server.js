@@ -50,6 +50,51 @@ try {
   console.error('✗ Failed to load historicalService:', e.message);
 }
 
+// AI Prediction Services
+let patternAnalysisService, aiPredictionService, enhancedPredictionEngine, marketSentimentService, riskManagementService, advancedTechnicalService;
+
+try {
+  patternAnalysisService = require('./services/patternAnalysisService');
+  console.log('✓ patternAnalysisService loaded');
+} catch (e) {
+  console.error('✗ Failed to load patternAnalysisService:', e.message);
+}
+
+try {
+  aiPredictionService = require('./services/aiPredictionService');
+  console.log('✓ aiPredictionService loaded');
+} catch (e) {
+  console.error('✗ Failed to load aiPredictionService:', e.message);
+}
+
+try {
+  enhancedPredictionEngine = require('./services/enhancedPredictionEngine');
+  console.log('✓ enhancedPredictionEngine loaded');
+} catch (e) {
+  console.error('✗ Failed to load enhancedPredictionEngine:', e.message);
+}
+
+try {
+  marketSentimentService = require('./services/marketSentimentService');
+  console.log('✓ marketSentimentService loaded');
+} catch (e) {
+  console.error('✗ Failed to load marketSentimentService:', e.message);
+}
+
+try {
+  riskManagementService = require('./services/riskManagementService');
+  console.log('✓ riskManagementService loaded');
+} catch (e) {
+  console.error('✗ Failed to load riskManagementService:', e.message);
+}
+
+try {
+  advancedTechnicalService = require('./services/advancedTechnicalService');
+  console.log('✓ advancedTechnicalService loaded');
+} catch (e) {
+  console.error('✗ Failed to load advancedTechnicalService:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -286,6 +331,305 @@ app.get('/api/screener/strategies/:name', (req, res) => {
   try {
     const strategy = strategyPresetsService.getStrategy(req.params.name);
     res.json(strategy);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// AI PREDICTION & PATTERN ANALYSIS ENDPOINTS
+// =============================================
+
+// Scan all stocks for trading opportunities
+app.get('/api/ai/opportunities', async (req, res) => {
+  try {
+    if (!aiPredictionService) {
+      return res.status(503).json({ error: 'AI prediction service not available' });
+    }
+    console.log('🤖 Starting AI opportunity scan...');
+    const opportunities = await aiPredictionService.scanForOpportunities();
+    res.json(opportunities);
+  } catch (error) {
+    console.error('AI scan error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get bullish opportunities only
+app.get('/api/ai/opportunities/bullish', async (req, res) => {
+  try {
+    if (!aiPredictionService) {
+      return res.status(503).json({ error: 'AI prediction service not available' });
+    }
+    const { limit = 10 } = req.query;
+    const opportunities = await aiPredictionService.getBullishOpportunities(parseInt(limit));
+    res.json(opportunities);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get bearish opportunities only
+app.get('/api/ai/opportunities/bearish', async (req, res) => {
+  try {
+    if (!aiPredictionService) {
+      return res.status(503).json({ error: 'AI prediction service not available' });
+    }
+    const { limit = 10 } = req.query;
+    const opportunities = await aiPredictionService.getBearishOpportunities(parseInt(limit));
+    res.json(opportunities);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Analyze specific stock for patterns and predictions
+app.get('/api/ai/analyze/:symbol', async (req, res) => {
+  try {
+    if (!aiPredictionService) {
+      return res.status(503).json({ error: 'AI prediction service not available' });
+    }
+    const { symbol } = req.params;
+    console.log(`🔍 AI analyzing ${symbol}...`);
+    const analysis = await aiPredictionService.analyzeStock(symbol);
+    if (!analysis) {
+      return res.json({ symbol, message: 'No significant opportunity detected', confidence: 0 });
+    }
+    res.json(analysis);
+  } catch (error) {
+    res.status(500).json({ error: error.message, symbol: req.params.symbol });
+  }
+});
+
+// Analyze user's watchlist
+app.post('/api/ai/analyze-watchlist', async (req, res) => {
+  try {
+    if (!aiPredictionService) {
+      return res.status(503).json({ error: 'AI prediction service not available' });
+    }
+    const { symbols } = req.body;
+    if (!symbols || !Array.isArray(symbols)) {
+      return res.status(400).json({ error: 'symbols array required' });
+    }
+    console.log(`🔍 Analyzing watchlist of ${symbols.length} stocks...`);
+    const results = await aiPredictionService.analyzeWatchlist(symbols);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get pattern analysis for a stock
+app.get('/api/ai/patterns/:symbol', async (req, res) => {
+  try {
+    if (!patternAnalysisService || !historicalService) {
+      return res.status(503).json({ error: 'Pattern analysis service not available' });
+    }
+    const { symbol } = req.params;
+    
+    // Get historical data
+    const historicalData = await historicalService.getHistoricalData(symbol, '3mo');
+    if (!historicalData || !historicalData.history) {
+      return res.status(404).json({ error: 'No historical data available' });
+    }
+    
+    // Get current price
+    const priceData = await stockService.getStockPrice(symbol);
+    const currentPrice = priceData?.price || historicalData.history[historicalData.history.length - 1]?.close;
+    
+    // Analyze patterns
+    const patterns = patternAnalysisService.analyzePatterns(historicalData.history, currentPrice);
+    
+    res.json({
+      symbol,
+      currentPrice,
+      ...patterns,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// PREMIUM AI SIGNALS & MARKET INTELLIGENCE
+// =============================================
+
+// Get PREMIUM high-quality signals only
+app.get('/api/ai/premium-signals', async (req, res) => {
+  try {
+    if (!enhancedPredictionEngine) {
+      return res.status(503).json({ error: 'Enhanced prediction engine not available' });
+    }
+    console.log('🎯 Generating PREMIUM signals...');
+    const signals = await enhancedPredictionEngine.generatePremiumSignals();
+    res.json(signals);
+  } catch (error) {
+    console.error('Premium signals error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get detailed analysis for single stock
+app.get('/api/ai/detailed/:symbol', async (req, res) => {
+  try {
+    if (!enhancedPredictionEngine) {
+      return res.status(503).json({ error: 'Enhanced prediction engine not available' });
+    }
+    const { symbol } = req.params;
+    console.log(`🔬 Deep analysis for ${symbol}...`);
+    const analysis = await enhancedPredictionEngine.getDetailedAnalysis(symbol);
+    res.json(analysis);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get advanced technical indicators
+app.get('/api/ai/technicals/:symbol', async (req, res) => {
+  try {
+    if (!advancedTechnicalService || !historicalService) {
+      return res.status(503).json({ error: 'Technical service not available' });
+    }
+    const { symbol } = req.params;
+    
+    const historicalData = await historicalService.getHistoricalData(symbol, '3mo');
+    if (!historicalData?.history) {
+      return res.status(404).json({ error: 'No historical data' });
+    }
+    
+    const technicals = advancedTechnicalService.getCompleteAnalysis(historicalData.history);
+    res.json({ symbol, ...technicals, timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// MARKET SENTIMENT & INTELLIGENCE
+// =============================================
+
+// Get overall market sentiment
+app.get('/api/market/sentiment', async (req, res) => {
+  try {
+    if (!marketSentimentService) {
+      return res.status(503).json({ error: 'Market sentiment service not available' });
+    }
+    console.log('📊 Analyzing market sentiment...');
+    const sentiment = await marketSentimentService.getMarketSentiment();
+    res.json(sentiment);
+  } catch (error) {
+    console.error('Sentiment error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get sector rotation analysis
+app.get('/api/market/sectors', async (req, res) => {
+  try {
+    if (!marketSentimentService) {
+      return res.status(503).json({ error: 'Market sentiment service not available' });
+    }
+    console.log('🔄 Analyzing sector rotation...');
+    const sectors = await marketSentimentService.getSectorRotation();
+    res.json(sectors);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Check if trading conditions are favorable
+app.get('/api/market/trading-conditions', async (req, res) => {
+  try {
+    if (!marketSentimentService) {
+      return res.status(503).json({ error: 'Market sentiment service not available' });
+    }
+    const conditions = await marketSentimentService.isTradingFavorable();
+    res.json(conditions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get Fear & Greed index
+app.get('/api/market/fear-greed', async (req, res) => {
+  try {
+    if (!marketSentimentService) {
+      return res.status(503).json({ error: 'Market sentiment service not available' });
+    }
+    const fearGreed = await marketSentimentService.getFearGreedIndex();
+    res.json(fearGreed);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// RISK MANAGEMENT
+// =============================================
+
+// Calculate position size
+app.post('/api/risk/position-size', (req, res) => {
+  try {
+    if (!riskManagementService) {
+      return res.status(503).json({ error: 'Risk management service not available' });
+    }
+    const result = riskManagementService.calculatePositionSize(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Calculate trade risk
+app.post('/api/risk/trade-risk', (req, res) => {
+  try {
+    if (!riskManagementService) {
+      return res.status(503).json({ error: 'Risk management service not available' });
+    }
+    const result = riskManagementService.calculateTradeRisk(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Pre-trade checklist
+app.post('/api/risk/pre-trade-check', (req, res) => {
+  try {
+    if (!riskManagementService) {
+      return res.status(503).json({ error: 'Risk management service not available' });
+    }
+    const result = riskManagementService.preTradeChecklist(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Daily risk check
+app.post('/api/risk/daily-check', (req, res) => {
+  try {
+    if (!riskManagementService) {
+      return res.status(503).json({ error: 'Risk management service not available' });
+    }
+    const { dailyPnL, capital } = req.body;
+    const result = riskManagementService.dailyRiskCheck(dailyPnL, capital);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Portfolio risk assessment
+app.post('/api/risk/portfolio', (req, res) => {
+  try {
+    if (!riskManagementService) {
+      return res.status(503).json({ error: 'Risk management service not available' });
+    }
+    const { positions, capital } = req.body;
+    const result = riskManagementService.assessPortfolioRisk(positions, capital);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
