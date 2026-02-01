@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const API_BASE = '/api';
 const CARDS_PER_PAGE = 10;
@@ -8,11 +9,11 @@ const CARDS_PER_PAGE = 10;
  * Shows only high-quality, verified trading signals
  */
 function PremiumSignals({ onAddToWatchlist }) {
+  const toast = useToast();
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
-  const [lastScan, setLastScan] = useState(null);
   const [expandedCard, setExpandedCard] = useState(null);
   const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE);
 
@@ -27,10 +28,16 @@ function PremiumSignals({ onAddToWatchlist }) {
       const data = await response.json();
       setSignals(data.signals || []);
       setSummary(data.summary);
-      setLastScan(new Date());
       setVisibleCount(CARDS_PER_PAGE);
+      
+      if (data.signals?.length > 0) {
+        toast.success(`Found ${data.signals.length} premium signals`, 'Scan Complete');
+      } else {
+        toast.info('No premium signals found at this time');
+      }
     } catch (err) {
       setError(err.message);
+      toast.error(err.message, 'Fetch Failed');
     }
     setLoading(false);
   };

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const API_BASE = '/api';
 
@@ -7,13 +8,13 @@ const API_BASE = '/api';
  * Shows market sentiment, sector rotation, and trading conditions
  */
 function MarketIntelligence() {
+  const toast = useToast();
   const [sentiment, setSentiment] = useState(null);
   const [sectors, setSectors] = useState(null);
   const [conditions, setConditions] = useState(null);
   const [fearGreed, setFearGreed] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
     fetchMarketData();
@@ -45,9 +46,10 @@ function MarketIntelligence() {
         setFearGreed(data);
       }
 
-      setLastUpdate(new Date());
+      toast.success('Market data updated', 'Refresh Complete');
     } catch (err) {
       setError(err.message);
+      toast.error('Failed to fetch market data');
     }
     setLoading(false);
   };
@@ -58,9 +60,10 @@ function MarketIntelligence() {
       if (res.ok) {
         const data = await res.json();
         setSectors(data);
+        toast.info('Sector data loaded');
       }
     } catch (err) {
-      console.error('Sector fetch failed:', err);
+      toast.error('Failed to load sector data');
     }
   };
 

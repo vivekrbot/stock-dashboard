@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const API_BASE = '/api';
 
@@ -7,6 +8,7 @@ const API_BASE = '/api';
  * Position sizing, trade risk calculation, portfolio management
  */
 function RiskCalculator() {
+  const toast = useToast();
   const [accountSize, setAccountSize] = useState(100000);
   const [riskPercent, setRiskPercent] = useState(2);
   const [entryPrice, setEntryPrice] = useState('');
@@ -14,10 +16,7 @@ function RiskCalculator() {
   const [target, setTarget] = useState('');
   const [calculation, setCalculation] = useState(null);
   const [loading, setLoading] = useState(false);
-  
-  const [portfolioRisk, setPortfolioRisk] = useState(null);
   const [dailyRisk, setDailyRisk] = useState(null);
-  const [preTradeCheck, setPreTradeCheck] = useState(null);
 
   // Calculate position size when inputs change
   const calculateRisk = async () => {
@@ -42,7 +41,7 @@ function RiskCalculator() {
         setCalculation(data);
       }
     } catch (err) {
-      console.error('Error calculating risk:', err);
+      toast.error('Failed to calculate risk');
     }
     setLoading(false);
   };
@@ -55,7 +54,7 @@ function RiskCalculator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           capital: accountSize,
-          dailyPnL: 0 // Would need to track this
+          dailyPnL: 0
         })
       });
       
@@ -63,7 +62,7 @@ function RiskCalculator() {
         setDailyRisk(await response.json());
       }
     } catch (err) {
-      console.error('Error fetching daily risk:', err);
+      // Silent fail for daily risk check
     }
   };
 

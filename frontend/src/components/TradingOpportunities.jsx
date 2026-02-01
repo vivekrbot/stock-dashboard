@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const API_BASE = '/api';
 const CARDS_PER_PAGE = 10;
 
 function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
+  const toast = useToast();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [scanType, setScanType] = useState('all'); // all, bullish, bearish, watchlist
-  const [lastScan, setLastScan] = useState(null);
+  const [scanType, setScanType] = useState('all');
   const [expandedCard, setExpandedCard] = useState(null);
   const [scanStats, setScanStats] = useState(null);
   const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE);
@@ -45,16 +46,19 @@ function TradingOpportunities({ watchlist = [], onAddToWatchlist }) {
         total: data.totalFound || data.opportunitiesFound,
         timestamp: data.timestamp
       });
-      setLastScan(new Date());
-      setVisibleCount(CARDS_PER_PAGE); // Reset pagination on new scan
+      setVisibleCount(CARDS_PER_PAGE);
+      
+      if (data.opportunities?.length > 0) {
+        toast.success(`Found ${data.opportunities.length} AI opportunities`, 'Scan Complete');
+      }
     } catch (err) {
       setError(err.message);
+      toast.error(err.message, 'Scan Failed');
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    // Auto-scan on mount
     scanForOpportunities();
   }, []);
 

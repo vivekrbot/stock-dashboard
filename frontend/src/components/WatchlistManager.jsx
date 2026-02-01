@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useToast } from './Toast';
 
 const STORAGE_KEY = 'stock-dashboard-watchlists';
 
@@ -13,6 +14,7 @@ const DEFAULT_WATCHLISTS = {
 };
 
 function WatchlistManager({ currentStocks, onWatchlistChange, onStocksChange }) {
+  const toast = useToast();
   const [watchlists, setWatchlists] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : DEFAULT_WATCHLISTS;
@@ -70,6 +72,7 @@ function WatchlistManager({ currentStocks, onWatchlistChange, onStocksChange }) 
     onStocksChange(watchlists[id].stocks);
     onWatchlistChange(id);
     setShowDropdown(false);
+    toast.info(`Switched to "${watchlists[id].name}"`);
   };
 
   const createWatchlist = () => {
@@ -94,20 +97,18 @@ function WatchlistManager({ currentStocks, onWatchlistChange, onStocksChange }) 
     setNewWatchlistName('');
     setShowCreateModal(false);
     setShowDropdown(false);
+    toast.success(`Created "${newWatchlistName.trim()}"`, 'Watchlist Created');
   };
 
   const deleteWatchlist = (id, e) => {
     e.stopPropagation();
     
     if (Object.keys(watchlists).length <= 1) {
-      alert('You must have at least one watchlist');
+      toast.warning('You must have at least one watchlist');
       return;
     }
     
-    if (!confirm(`Delete "${watchlists[id].name}"? This cannot be undone.`)) {
-      return;
-    }
-    
+    const name = watchlists[id].name;
     const newWatchlists = { ...watchlists };
     delete newWatchlists[id];
     setWatchlists(newWatchlists);
@@ -119,6 +120,8 @@ function WatchlistManager({ currentStocks, onWatchlistChange, onStocksChange }) 
       onStocksChange(newWatchlists[firstId].stocks);
       onWatchlistChange(firstId);
     }
+    
+    toast.info(`Deleted "${name}"`);
   };
 
   const startEditing = (id, name, e) => {
