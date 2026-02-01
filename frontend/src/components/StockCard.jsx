@@ -1,35 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = '/api';
 
-// Fallback mock data for when API is unavailable
-const MOCK_STOCKS = {
-  'RELIANCE': { price: 1395.40, change: 4.40, percentChange: 0.32, high: 1398, low: 1378.5, open: 1382.6, previousClose: 1391 },
-  'TCS': { price: 3850.25, change: -12.50, percentChange: -0.32, high: 3875, low: 3840, open: 3860, previousClose: 3862.75 },
-  'INFY': { price: 1580.60, change: 8.20, percentChange: 0.52, high: 1590, low: 1570, open: 1575, previousClose: 1572.40 },
-  'HDFCBANK': { price: 1625.80, change: -5.30, percentChange: -0.32, high: 1640, low: 1620, open: 1635, previousClose: 1631.10 },
-  'WIPRO': { price: 285.45, change: 2.15, percentChange: 0.76, high: 288, low: 283, open: 284, previousClose: 283.30 },
-  'ICICIBANK': { price: 1095.20, change: 7.80, percentChange: 0.72, high: 1100, low: 1085, open: 1088, previousClose: 1087.40 },
-  'SBIN': { price: 785.60, change: -3.20, percentChange: -0.41, high: 792, low: 782, open: 790, previousClose: 788.80 },
-  'BHARTIARTL': { price: 1520.30, change: 15.40, percentChange: 1.02, high: 1528, low: 1505, open: 1510, previousClose: 1504.90 },
-};
-
-function StockCard({ symbol, onAnalyze, onRemove }) {
+function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
+  const [error, setError] = useState(null);
+  const [isLive, setIsLive] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const refreshIntervalRef = useRef(null);
 
   useEffect(() => {
     fetchStock();
+    
+    // Check market status and setup auto-refresh
+    checkMarketAndSetupRefresh();
+    
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
   }, [symbol]);
 
-  const fetchStock = async () => {
-    setLoading(true);
-    setUsingMock(false);
+  const checkMarketAndSetupRefresh = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/market/status`);
+      if (res.ok) {
+        const status = await res.json();
+        setIsLive(status.isOpen);
+        
+        // If market is open, refresh every 30 seconds
+        if (status.isOpen) {
+          refreshIntervalRef.current = setInterval(() => {
+            fetchStock(true); // silent refresh
+          }, 30000);
+        }
+      }
+    } catch (e) {
+      console.error('Market status check failed:', e);
+    }
+  };
+
+  const fetchStock = async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
     
     try {
-      const response = await fetch(`${API_BASE}/api/stock/${symbol}`, {
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+      const response = await fetch(`${API_BASE}/stock/${symbol}`, {
+        signal: AbortSignal.timeout(10000)
       });
       
       if (!response.ok) {
@@ -43,32 +62,12 @@ function StockCard({ symbol, onAnalyze, onRemove }) {
       }
       
       setData(stockData);
-    } catch (error) {
-      console.warn(`API failed for ${symbol}, using mock data:`, error.message);
-      
-      // Use mock data as fallback
-      if (MOCK_STOCKS[symbol]) {
-        setData({ symbol, ...MOCK_STOCKS[symbol], source: 'Mock Data' });
-        setUsingMock(true);
-      } else {
-        // Generate random mock data for unknown symbols
-        const basePrice = 500 + Math.random() * 2000;
-        const change = (Math.random() - 0.5) * 20;
-        setData({
-          symbol,
-          price: basePrice,
-          change: change,
-          percentChange: (change / basePrice) * 100,
-          high: basePrice * 1.02,
-          low: basePrice * 0.98,
-          open: basePrice * 0.99,
-          previousClose: basePrice - change,
-          source: 'Mock Data'
-        });
-        setUsingMock(true);
-      }
+      setLastRefresh(new Date());
+    } catch (err) {
+      console.error(`Failed to fetch ${symbol}:`, err.message);
+      if (!silent) setError(err.message);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   if (loading) {
@@ -81,6 +80,21 @@ function StockCard({ symbol, onAnalyze, onRemove }) {
     );
   }
 
+  if (error) {
+    return (
+      <div className="stock-card">
+        <div className="stock-header">
+          <div className="stock-symbol">{symbol}</div>
+          <button onClick={() => onRemove(symbol)} className="remove-btn">×</button>
+        </div>
+        <div style={{ color: '#ef4444', padding: '20px', textAlign: 'center' }}>
+          ❌ {error}
+        </div>
+        <button onClick={fetchStock} className="analyze-btn">Retry</button>
+      </div>
+    );
+  }
+
   if (!data) return null;
 
   const isPositive = data.percentChange >= 0;
@@ -89,10 +103,21 @@ function StockCard({ symbol, onAnalyze, onRemove }) {
     <div className="stock-card">
       <div className="stock-header">
         <div>
-          <div className="stock-symbol">{symbol}</div>
-          <div className="stock-exchange">
-            NSE {usingMock && <span style={{color: '#f59e0b', fontSize: '0.7rem'}}>(Demo)</span>}
+          <div className="stock-symbol">
+            {symbol}
+            {isLive && (
+              <span style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#22c55e',
+                marginLeft: '8px',
+                animation: 'pulse 2s infinite'
+              }} title="Live Data" />
+            )}
           </div>
+          <div className="stock-exchange">NSE {isLive ? '• LIVE' : ''}</div>
         </div>
         <button onClick={() => onRemove(symbol)} className="remove-btn">×</button>
       </div>
@@ -111,9 +136,43 @@ function StockCard({ symbol, onAnalyze, onRemove }) {
         <div>Prev: <span>₹{data.previousClose?.toFixed(2)}</span></div>
       </div>
 
-      <button onClick={() => onAnalyze(symbol)} className="analyze-btn">
-        Analyze Stock
-      </button>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button 
+          onClick={() => onChart && onChart(symbol)} 
+          className="analyze-btn"
+          style={{ flex: 1, background: '#1e293b' }}
+        >
+          📈 Chart
+        </button>
+        <button 
+          onClick={() => onAnalyze(symbol)} 
+          className="analyze-btn"
+          style={{ flex: 2 }}
+        >
+          🔍 Analyze
+        </button>
+      </div>
+
+      <div style={{ 
+        fontSize: '0.7rem', 
+        color: '#64748b', 
+        textAlign: 'center',
+        marginTop: '8px',
+        display: 'flex',
+        justifyContent: 'space-between'
+      }}>
+        <span>{data.source && `via ${data.source}`}</span>
+        {lastRefresh && (
+          <span>Updated: {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   );
 }

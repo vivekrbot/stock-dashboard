@@ -1,134 +1,86 @@
-# 📈 Stock Dashboard
+# Stock Dashboard
 
-Real-time Indian stock market analysis dashboard with NSE/BSE data, technical indicators, and smart screening capabilities.
+Advanced NSE Stock Analysis & Screener with real-time data from Yahoo Finance.
 
-![Stock Dashboard](https://img.shields.io/badge/Status-Production%20Ready-green)
-![Node.js](https://img.shields.io/badge/Node.js-v18+-blue)
-![React](https://img.shields.io/badge/React-19-61DAFB)
+## Features
 
-## ✨ Features
+- 📊 Real-time stock prices from NSE
+- 📈 Technical analysis (RSI, SMA, MACD)
+- 💼 Fundamental analysis (P/E, P/B, Market Cap)
+- 🎯 Strategy-based stock screening
+- 📱 Modern React frontend with splash screen
 
-- **Real-time Stock Prices** - Live data from Yahoo Finance API
-- **Technical Analysis** - RSI, SMA, EMA, momentum indicators
-- **Fundamental Analysis** - P/E ratio, market cap, sector info
-- **Smart Screener** - Find opportunities with 3 trading strategies:
-  - Short-term (1-7 days)
-  - Balanced (1-4 weeks)
-  - Long-term (1-6 months)
-- **Pattern Detection** - Breakouts, consolidation, support/resistance
-- **Sector Analysis** - Identify sector leaders
+## Quick Start
 
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js v18 or higher
-- npm or yarn
-
-### Installation
+### 1. Install Dependencies
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/stock-dashboard.git
-cd stock-dashboard
-
-# Install backend dependencies
-npm install
-
-# Install frontend dependencies
-cd frontend && npm install && cd ..
+npm run install:all
 ```
 
-### Configuration
+### 2. Start Backend Server
 
-Create a `.env` file in the root directory:
-
-```env
-RAPIDAPI_KEY=your_rapidapi_key_here
-FINNHUB_API_KEY=your_finnhub_key_here
-```
-
-> Note: The app works with Yahoo Finance by default. RapidAPI keys are optional for additional data sources.
-
-### Running
-
-**Development Mode:**
 ```bash
-# Terminal 1 - Backend (port 3001)
-npm run dev
-
-# Terminal 2 - Frontend (port 5173)
-cd frontend && npm run dev
+npm start
 ```
 
-**Production Mode:**
+Backend runs on http://localhost:3001
+
+### 3. Start Frontend (in a new terminal)
+
 ```bash
-npm run prod
+npm run frontend
 ```
 
-## 📊 API Endpoints
+Frontend runs on http://localhost:5173
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check |
-| `/api/stock/:symbol` | GET | Get stock price |
-| `/api/stock/:symbol/analyze` | GET | Full stock analysis |
-| `/api/stock/:symbol/history` | GET | Historical data |
-| `/api/screener/find-opportunities` | POST | Smart stock screener |
-| `/api/screener/strategies` | GET | Available strategies |
-
-## 🛠️ Tech Stack
-
-**Backend:**
-- Express.js 5.x
-- Node.js
-- Yahoo Finance 2 API
-- RapidAPI (optional)
-
-**Frontend:**
-- React 19
-- Vite 7
-- Recharts
-- TailwindCSS
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 stock-dashboard/
 ├── src/
-│   ├── server.js           # Express server
-│   ├── api/                 # API routes
-│   └── services/
-│       ├── stockService.js      # Stock data fetching
-│       ├── scoringService.js    # Analysis & scoring
-│       ├── screenerService.js   # Stock screening
-│       ├── patternService.js    # Pattern detection
-│       └── sectorService.js     # Sector analysis
+│   ├── server.js          # Express API server
+│   └── services/          # Business logic
+│       ├── stockService.js
+│       ├── scoringService.js
+│       ├── screenerService.js
+│       └── strategyPresetsService.js
 ├── frontend/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   └── components/
-│   │       ├── StockCard.jsx
-│   │       └── AnalysisModal.jsx
-│   └── dist/               # Production build
-├── .env                    # Environment variables
+│   └── src/
+│       ├── App.jsx
+│       └── components/
+│           ├── StockCard.jsx
+│           ├── AnalysisModal.jsx
+│           └── SplashScreen.jsx
+├── .env                   # API keys (optional)
 └── package.json
 ```
 
-## 📈 Supported Stocks
+## API Endpoints
 
-The screener includes 80 popular NSE stocks:
-- **Large Cap (50):** RELIANCE, TCS, HDFCBANK, INFY, ICICIBANK, etc.
-- **Mid Cap (20):** PAGEIND, MPHASIS, AUROPHARMA, LUPIN, etc.
-- **Small Cap (10):** NAVINFLUOR, DEEPAKNTR, KPITTECH, etc.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/stock/:symbol` | Get stock price |
+| GET | `/api/stock/:symbol/analyze` | Full stock analysis |
+| GET | `/api/screener/strategies` | List strategies |
+| POST | `/api/screener/find-opportunities` | Screen stocks |
 
-## 🤝 Contributing
+## Environment Variables (Optional)
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Create a `.env` file:
 
-## 📄 License
+```
+RAPIDAPI_KEY=your-key-here
+FINNHUB_API_KEY=your-key-here
+```
 
-ISC License
+## Tech Stack
 
-## ⚠️ Disclaimer
+- **Backend**: Node.js, Express 5, yahoo-finance2
+- **Frontend**: React 19, Vite 7
+- **Data**: Yahoo Finance API
 
-This tool is for educational and informational purposes only. It should not be considered as financial advice. Always do your own research before making investment decisions.
+## Author
+
+Made by Vivek

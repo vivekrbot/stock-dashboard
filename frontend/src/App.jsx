@@ -1,27 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import StockCard from './components/StockCard';
 import AnalysisModal from './components/AnalysisModal';
 import SplashScreen from './components/SplashScreen';
+import MarketStatus from './components/MarketStatus';
+import StockChart from './components/StockChart';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = '/api';
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const defaultWatchlist = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
   
-  // Stable callback for SplashScreen
-  const handleSplashReady = useCallback(() => {
-    setIsLoading(false);
-  }, []);
   const [watchlist, setWatchlist] = useState(defaultWatchlist);
   const [newSymbol, setNewSymbol] = useState('');
   const [selectedStock, setSelectedStock] = useState(null);
+  const [chartStock, setChartStock] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [showStrategyDetails, setShowStrategyDetails] = useState(false);
   
-  // Filter states
   const [strategy, setStrategy] = useState('balanced');
   const [strategyDetails, setStrategyDetails] = useState(null);
   const [capSize, setCapSize] = useState('all');
@@ -29,55 +27,19 @@ function App() {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sectorLeadersOnly, setSectorLeadersOnly] = useState(false);
-  
   const [scanResults, setScanResults] = useState(null);
 
-  // Mock strategy data for when API is unavailable
-  const MOCK_STRATEGIES = {
-    'short-term': {
-      name: 'Short-Term Trading',
-      description: 'Day/swing trading with heavy technical focus',
-      timeframe: '1-7 days',
-      weights: { technical: 0.80, fundamental: 0.20 }
-    },
-    'balanced': {
-      name: 'Balanced Trading',
-      description: 'Medium-term swing trading, balanced approach',
-      timeframe: '1-4 weeks',
-      weights: { technical: 0.60, fundamental: 0.40 }
-    },
-    'long-term': {
-      name: 'Long-Term Investment',
-      description: 'Value investing with strong fundamentals focus',
-      timeframe: '1-6 months',
-      weights: { technical: 0.30, fundamental: 0.70 }
-    }
-  };
-
-  // Fetch strategy details when strategy changes - MUST be before any conditional returns!
   useEffect(() => {
     if (!isLoading && strategy) {
-      fetch(`${API_BASE}/api/screener/strategies/${strategy}`, {
-        signal: AbortSignal.timeout(5000)
-      })
-        .then(res => {
-          if (!res.ok) throw new Error('API unavailable');
-          return res.json();
-        })
-        .then(data => {
-          if (data.error) throw new Error(data.error);
-          setStrategyDetails(data);
-        })
-        .catch(err => {
-          console.warn('Using mock strategy data:', err.message);
-          setStrategyDetails(MOCK_STRATEGIES[strategy] || MOCK_STRATEGIES['balanced']);
-        });
+      fetch(`${API_BASE}/screener/strategies/${strategy}`)
+        .then(res => res.json())
+        .then(data => setStrategyDetails(data))
+        .catch(err => console.error('Failed to load strategy:', err));
     }
   }, [strategy, isLoading]);
 
-  // Show splash screen first - after all hooks
   if (isLoading) {
-    return <SplashScreen onReady={handleSplashReady} />;
+    return <SplashScreen onReady={() => setIsLoading(false)} />;
   }
 
   const addStock = (e) => {
@@ -93,61 +55,54 @@ function App() {
   };
 
   const findOpportunities = async () => {
-  setScanning(true);
-  setScanResults(null);
-  try {
-    const filterPayload = {
-      strategy,
-      capSize,
-      sector: sector === 'all' ? null : sector,
-      maxResults: 8,
-      signalType: 'BUY',
-      minPrice: minPrice ? parseFloat(minPrice) : 0,
-      maxPrice: maxPrice ? parseFloat(maxPrice) : 999999,
-      sectorLeadersOnly
-    };
+    setScanning(true);
+    setScanResults(null);
+    try {
+      const filterPayload = {
+        strategy,
+        capSize,
+        sector: sector === 'all' ? null : sector,
+        maxResults: 8,
+        signalType: 'BUY',
+        minPrice: minPrice ? parseFloat(minPrice) : 0,
+        maxPrice: maxPrice ? parseFloat(maxPrice) : 999999,
+        sectorLeadersOnly
+      };
 
-    const response = await fetch(`${API_BASE}/api/screener/find-opportunities`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(filterPayload)
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Screening failed');
+      const response = await fetch(`${API_BASE}/screener/find-opportunities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(filterPayload)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Screening failed');
+      }
+
+      const data = await response.json();
+      setScanResults(data);
+      
+      if (data.opportunities && data.opportunities.length > 0) {
+        setWatchlist(data.opportunities.map(o => o.symbol));
+      } else {
+        alert('No opportunities found. Try adjusting your filters.');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert(`Error: ${error.message}`);
     }
-
-    const data = await response.json();
-    setScanResults(data);
-    
-    if (data.opportunities && data.opportunities.length > 0) {
-      const symbols = data.opportunities.map(o => o.symbol);
-      setWatchlist(symbols);
-    } else {
-      alert('⚠️ No opportunities found. This could be due to:\n- Strict filters\n- NSE API rate limiting\n- Market conditions\n\nTry adjusting your criteria or wait a few minutes.');
-    }
-  } catch (error) {
-    console.error('Error finding opportunities:', error);
-    alert(`❌ REAL DATA ERROR:\n\n${error.message}\n\nNSE may be blocking requests or experiencing downtime. Please try again in a few minutes.`);
-  }
-  setScanning(false);
-};
-
-  const refreshWatchlist = () => {
-    setRefreshKey(prev => prev + 1);
+    setScanning(false);
   };
 
+  const refreshWatchlist = () => setRefreshKey(prev => prev + 1);
   const resetToDefault = () => {
     setWatchlist(defaultWatchlist);
     setRefreshKey(prev => prev + 1);
     setScanResults(null);
   };
 
-  const sectors = [
-    'IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 
-    'Metals', 'Telecom', 'Cement', 'Finance'
-  ];
+  const sectors = ['IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 'Metals', 'Telecom', 'Cement', 'Finance'];
 
   return (
     <div className="container">
@@ -155,6 +110,9 @@ function App() {
         <h1>📊 Advanced Stock Screener</h1>
         <p>Strategy-Based Analysis • Pattern Recognition • Sector Intelligence</p>
       </div>
+
+      {/* Market Status Banner */}
+      <MarketStatus />
 
       <form onSubmit={addStock} className="add-stock-form">
         <input
@@ -166,12 +124,10 @@ function App() {
         <button type="submit">Add Stock</button>
       </form>
 
-      {/* STRATEGY SELECTOR */}
+      {/* Strategy Selector */}
       <div style={{ marginBottom: '20px', padding: '20px', background: '#1e293b', borderRadius: '8px' }}>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-          <label style={{ fontWeight: 'bold', minWidth: '150px' }}>
-            📈 Trading Strategy:
-          </label>
+          <label style={{ fontWeight: 'bold', minWidth: '150px' }}>📈 Trading Strategy:</label>
           <select 
             value={strategy}
             onChange={(e) => setStrategy(e.target.value)}
@@ -181,58 +137,30 @@ function App() {
             <option value="balanced">⚖️ Balanced (1-4 weeks) - 60% Technical</option>
             <option value="long-term">📊 Long-Term (3-12 months) - 40% Technical</option>
           </select>
-          
           <button
             onClick={() => setShowStrategyDetails(!showStrategyDetails)}
             style={{ padding: '10px 20px', borderRadius: '6px', background: '#475569', color: 'white', border: 'none', cursor: 'pointer' }}
           >
-            {showStrategyDetails ? '▼ Hide Details' : '▶ Show Details'}
+            {showStrategyDetails ? '▼ Hide' : '▶ Details'}
           </button>
         </div>
 
-        {/* STRATEGY DETAILS */}
         {showStrategyDetails && strategyDetails && (
           <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', marginTop: '15px' }}>
-            <h3 style={{ marginTop: 0, color: '#60a5fa' }}>
-              {strategyDetails.name}
-            </h3>
-            <p style={{ color: '#94a3b8', marginBottom: '20px' }}>
-              {strategyDetails.description}
-            </p>
-
+            <h3 style={{ marginTop: 0, color: '#60a5fa' }}>{strategyDetails.name}</h3>
+            <p style={{ color: '#94a3b8' }}>{strategyDetails.description}</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
               <div>
-                <strong>⚖️ Scoring Weights:</strong>
+                <strong>⚖️ Weights:</strong>
                 <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
                   <div>Technical: <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{(strategyDetails.weights.technical * 100).toFixed(0)}%</span></div>
                   <div>Fundamental: <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>{(strategyDetails.weights.fundamental * 100).toFixed(0)}%</span></div>
                 </div>
               </div>
-
-              <div>
-                <strong>📊 RSI Thresholds:</strong>
-                <div style={{ marginTop: '8px', fontSize: '0.9rem', color: '#94a3b8' }}>
-                  <div>Large Cap: {strategyDetails.rsi.largeCap.min}-{strategyDetails.rsi.largeCap.max}</div>
-                  <div>Mid Cap: {strategyDetails.rsi.midCap.min}-{strategyDetails.rsi.midCap.max}</div>
-                  <div>Small Cap: {strategyDetails.rsi.smallCap.min}-{strategyDetails.rsi.smallCap.max}</div>
-                </div>
-              </div>
-
               <div>
                 <strong>🎯 Min Confidence:</strong>
-                <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
+                <div style={{ marginTop: '8px' }}>
                   <span style={{ color: '#eab308', fontWeight: 'bold', fontSize: '1.2rem' }}>{strategyDetails.minConfidence}+</span>
-                </div>
-              </div>
-
-              <div>
-                <strong>📈 Pattern Detection:</strong>
-                <div style={{ marginTop: '8px', fontSize: '0.9rem' }}>
-                  {strategyDetails.requirePatterns ? (
-                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>✅ Required</span>
-                  ) : (
-                    <span style={{ color: '#94a3b8' }}>Optional</span>
-                  )}
                 </div>
               </div>
             </div>
@@ -240,7 +168,7 @@ function App() {
         )}
       </div>
 
-      {/* ADVANCED FILTERS */}
+      {/* Advanced Filters */}
       <div style={{ marginBottom: '20px' }}>
         <button 
           onClick={() => setShowFilters(!showFilters)}
@@ -253,14 +181,12 @@ function App() {
           <div style={{ marginTop: '15px', padding: '20px', background: '#1e293b', borderRadius: '8px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                  Market Cap
-                </label>
-                  <select 
-                    value={capSize}
-                    onChange={(e) => setCapSize(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
-                  >
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Market Cap</label>
+                <select 
+                  value={capSize}
+                  onChange={(e) => setCapSize(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
+                >
                   <option value="all">All Caps</option>
                   <option value="largeCap">🔵 Large Cap</option>
                   <option value="midCap">🟡 Mid Cap</option>
@@ -269,38 +195,30 @@ function App() {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                  Sector
-                </label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Sector</label>
                 <select 
                   value={sector}
                   onChange={(e) => setSector(e.target.value)}
                   style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
                 >
                   <option value="all">All Sectors</option>
-                  {sectors.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {sectors.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                  Min Price (₹)
-                </label>
-                  <input
-                    type="number"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
-                    placeholder="0"
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
-                  />
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Min Price (₹)</label>
+                <input
+                  type="number"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  placeholder="0"
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#334155', color: 'white', border: 'none' }}
+                />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                  Max Price (₹)
-                </label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem' }}>Max Price (₹)</label>
                 <input
                   type="number"
                   value={maxPrice}
@@ -311,22 +229,20 @@ function App() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={sectorLeadersOnly}
-                  onChange={(e) => setSectorLeadersOnly(e.target.checked)}
-                  style={{ marginRight: '8px', width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <span>🏆 Sector Leaders Only</span>
-              </label>
-            </div>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={sectorLeadersOnly}
+                onChange={(e) => setSectorLeadersOnly(e.target.checked)}
+                style={{ marginRight: '8px', width: '18px', height: '18px' }}
+              />
+              <span>🏆 Sector Leaders Only</span>
+            </label>
           </div>
         )}
       </div>
 
-      {/* ACTION BUTTONS */}
+      {/* Action Buttons */}
       <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
         <button 
           onClick={findOpportunities}
@@ -335,14 +251,12 @@ function App() {
         >
           {scanning ? '🔍 Scanning...' : '🎯 Find Opportunities'}
         </button>
-        
         <button 
           onClick={refreshWatchlist}
           style={{ flex: 1, padding: '15px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}
         >
           🔄 Refresh
         </button>
-        
         <button 
           onClick={resetToDefault}
           style={{ flex: 1, padding: '15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}
@@ -351,48 +265,26 @@ function App() {
         </button>
       </div>
 
-      {/* SCAN RESULTS */}
+      {/* Scan Results */}
       {scanResults && scanResults.strategy && (
         <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>📊 Scan Results:</strong> Found <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{scanResults.totalFound}</span> opportunities from <span style={{ color: '#94a3b8' }}>{scanResults.totalScanned}</span> stocks
+          <div><strong>📊 Scan Results:</strong> Found <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{scanResults.totalFound}</span> opportunities from <span style={{ color: '#94a3b8' }}>{scanResults.totalScanned}</span> stocks</div>
+          <div style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '10px' }}>
+            Strategy: {scanResults.strategy.name} | Weights: Tech {(scanResults.strategy.weights.technical*100).toFixed(0)}% / Fund {(scanResults.strategy.weights.fundamental*100).toFixed(0)}%
           </div>
-          <div style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '10px' }}>
-            Strategy: {scanResults.strategy.name} | 
-            Weights: Tech {(scanResults.strategy.weights.technical*100).toFixed(0)}% / Fund {(scanResults.strategy.weights.fundamental*100).toFixed(0)}%
-          </div>
-          {scanResults.sectorAverages && Object.keys(scanResults.sectorAverages).length > 0 && (
-            <div style={{ fontSize: '0.9rem', marginTop: '10px' }}>
-              <strong>📈 Top Sectors:</strong>{' '}
-              {Object.entries(scanResults.sectorAverages)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 5)
-                .map(([sec, avg]) => (
-                  <span key={sec} style={{ marginRight: '15px' }}>
-                    {sec}: <span style={{ color: avg > 0 ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
-                      {avg > 0 ? '+' : ''}{avg.toFixed(2)}%
-                    </span>
-                  </span>
-                ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* SCANNING INDICATOR */}
+      {/* Scanning Indicator */}
       {scanning && (
         <div style={{ textAlign: 'center', padding: '40px', background: '#1e293b', borderRadius: '8px', marginBottom: '20px' }}>
           <div className="spinner" style={{ margin: '0 auto 20px' }}></div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '10px' }}>
-            Scanning with {strategyDetails?.name || 'Balanced'} strategy...
-          </div>
-          <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-            This may take 30-60 seconds
-          </div>
+          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '10px' }}>Scanning with {strategyDetails?.name || 'Balanced'} strategy...</div>
+          <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>This may take 30-60 seconds</div>
         </div>
       )}
 
-      {/* STOCK CARDS */}
+      {/* Stock Cards */}
       {watchlist.length > 0 ? (
         <div className="watchlist-grid">
           {watchlist.map((symbol) => (
@@ -401,6 +293,7 @@ function App() {
               symbol={symbol}
               onAnalyze={setSelectedStock}
               onRemove={removeStock}
+              onChart={setChartStock}
             />
           ))}
         </div>
@@ -413,10 +306,11 @@ function App() {
       )}
 
       {selectedStock && (
-        <AnalysisModal
-          symbol={selectedStock}
-          onClose={() => setSelectedStock(null)}
-        />
+        <AnalysisModal symbol={selectedStock} onClose={() => setSelectedStock(null)} />
+      )}
+
+      {chartStock && (
+        <StockChart symbol={chartStock} onClose={() => setChartStock(null)} />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const rapidApiService = require('./rapidApiService');
+const moneycontrolService = require('./moneycontrolService');
 
 // Lazy-load Yahoo Finance to avoid startup issues
 let yahooFinance = null;
@@ -26,7 +27,19 @@ class StockService {
   async getStockPrice(symbol) {
     const errors = [];
 
-    // Try Yahoo Finance first (most reliable)
+    // Try Moneycontrol FIRST (best for Indian stocks live data)
+    try {
+      const mcData = await moneycontrolService.getStockQuote(symbol);
+      if (mcData && mcData.price > 0) {
+        console.log(`✓ ${symbol} fetched from Moneycontrol`);
+        return mcData;
+      }
+    } catch (mcError) {
+      errors.push(`Moneycontrol: ${mcError.message}`);
+      console.log(`⚠ Moneycontrol failed for ${symbol}:`, mcError.message);
+    }
+
+    // Try Yahoo Finance as secondary
     try {
       const yahooData = await this.fetchFromYahoo(symbol);
       if (yahooData && yahooData.price > 0) {
@@ -38,7 +51,7 @@ class StockService {
       console.log(`⚠ Yahoo Finance failed for ${symbol}:`, yahooError.message);
     }
 
-    // Try RapidAPI as secondary source
+    // Try RapidAPI as third source
     if (this.rapidApi.isConfigured()) {
       try {
         const rapidData = await this.rapidApi.getLatestStockPrice(symbol);

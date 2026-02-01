@@ -1,17 +1,16 @@
 {
   "name": "stock-dashboard",
   "version": "1.0.0",
-  "description": "Stock Dashboard with real-time NSE/BSE data and analysis",
+  "description": "Stock Dashboard with real-time NSE stock data and analysis",
   "main": "src/server.js",
   "scripts": {
-    "start": "NODE_ENV=production node src/server.js",
+    "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "build": "cd frontend && npm run build",
-    "prod": "npm run build && npm start",
-    "test": "node test-rapidapi.js"
+    "frontend": "cd frontend && npm run dev",
+    "install:all": "npm install && cd frontend && npm install"
   },
-  "keywords": ["stocks", "nse", "bse", "trading", "analysis"],
-  "author": "",
+  "keywords": ["stocks", "nse", "trading", "analysis"],
+  "author": "Vivek",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
