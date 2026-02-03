@@ -535,6 +535,96 @@ class EnhancedPredictionEngine {
   async getDetailedAnalysis(symbol) {
     return this.analyzeWithFullStack(symbol);
   }
+
+  /**
+   * Generate signals with Predictive Swing confirmation
+   * Uses both traditional indicators AND Pine Script-based swing analysis
+   */
+  async generateHybridSignals() {
+    let predictiveSwingService;
+    try {
+      predictiveSwingService = require('./predictiveSwingService');
+    } catch (e) {
+      console.log('Predictive Swing Service not available, using standard signals');
+      return this.generatePremiumSignals();
+    }
+
+    const signals = [];
+    const errors = [];
+
+    console.log('🔮 Generating HYBRID signals (Premium + Predictive Swing)...');
+
+    for (const symbol of this.premiumWatchlist) {
+      try {
+        // Get both analyses
+        const [premiumSignal, swingAnalysis] = await Promise.all([
+          this.analyzeWithFullStack(symbol).catch(() => null),
+          predictiveSwingService.analyzeStock(symbol).catch(() => null)
+        ]);
+
+        if (!premiumSignal || !swingAnalysis) continue;
+
+        // Check if both systems agree
+        const premiumDirection = premiumSignal.direction;
+        const swingDirection = swingAnalysis.signal === 'BUY' ? 'bullish' : 'bearish';
+        const signalsAgree = premiumDirection === swingDirection;
+
+        // Combine confidence scores
+        const combinedConfidence = signalsAgree 
+          ? Math.min(95, Math.round((premiumSignal.confidence + swingAnalysis.signalScore) / 2 * 1.1))
+          : Math.round((premiumSignal.confidence + swingAnalysis.signalScore) / 2 * 0.7);
+
+        // Create hybrid signal
+        const hybridSignal = {
+          ...premiumSignal,
+          confidence: combinedConfidence,
+          signalsAgree,
+          swingScore: swingAnalysis.signalScore,
+          swingStrength: swingAnalysis.signalStrength,
+          prediction: swingAnalysis.prediction,
+          hybridAnalysis: true,
+          
+          // Override entry/target/sl with swing values if they agree and swing is stronger
+          ...(signalsAgree && swingAnalysis.signalScore > premiumSignal.confidence ? {
+            entry: swingAnalysis.entry,
+            target: swingAnalysis.target,
+            stopLoss: swingAnalysis.stopLoss,
+            riskRewardRatio: swingAnalysis.riskRewardRatio
+          } : {})
+        };
+
+        // Only include if combined confidence is good
+        if (combinedConfidence >= 65 && this.meetsQualityStandards(hybridSignal)) {
+          signals.push(hybridSignal);
+          console.log(`✅ ${symbol}: HYBRID ${hybridSignal.action} (${combinedConfidence}%) - ${signalsAgree ? 'ALIGNED' : 'DIVERGENT'}`);
+        }
+
+      } catch (error) {
+        errors.push({ symbol, error: error.message });
+      }
+
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    signals.sort((a, b) => {
+      // Prioritize aligned signals, then by confidence
+      if (a.signalsAgree !== b.signalsAgree) return b.signalsAgree ? 1 : -1;
+      return b.confidence - a.confidence;
+    });
+
+    return {
+      timestamp: new Date().toISOString(),
+      type: 'HYBRID',
+      totalScanned: this.premiumWatchlist.length,
+      qualitySignals: signals.length,
+      alignedSignals: signals.filter(s => s.signalsAgree).length,
+      signals: signals.slice(0, 12),
+      summary: {
+        ...this.generateSummary(signals),
+        alignedCount: signals.filter(s => s.signalsAgree).length
+      }
+    };
+  }
 }
 
 module.exports = new EnhancedPredictionEngine();

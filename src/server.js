@@ -95,6 +95,15 @@ try {
   console.error('✗ Failed to load advancedTechnicalService:', e.message);
 }
 
+// Predictive Swing Trading Service (Pine Script based)
+let predictiveSwingService;
+try {
+  predictiveSwingService = require('./services/predictiveSwingService');
+  console.log('✓ predictiveSwingService loaded (Pine Script Integration)');
+} catch (e) {
+  console.error('✗ Failed to load predictiveSwingService:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -470,6 +479,21 @@ app.get('/api/ai/premium-signals', async (req, res) => {
   }
 });
 
+// Get HYBRID signals (Premium + Predictive Swing combined)
+app.get('/api/ai/hybrid-signals', async (req, res) => {
+  try {
+    if (!enhancedPredictionEngine) {
+      return res.status(503).json({ error: 'Enhanced prediction engine not available' });
+    }
+    console.log('🔮 Generating HYBRID signals (Premium + Swing)...');
+    const signals = await enhancedPredictionEngine.generateHybridSignals();
+    res.json(signals);
+  } catch (error) {
+    console.error('Hybrid signals error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get detailed analysis for single stock
 app.get('/api/ai/detailed/:symbol', async (req, res) => {
   try {
@@ -630,6 +654,93 @@ app.post('/api/risk/portfolio', (req, res) => {
     const { positions, capital } = req.body;
     const result = riskManagementService.assessPortfolioRisk(positions, capital);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// PREDICTIVE SWING TRADING (Pine Script Based)
+// =============================================
+
+// Get all predictive swing signals (scan entire watchlist)
+app.get('/api/swing/signals', async (req, res) => {
+  try {
+    if (!predictiveSwingService) {
+      return res.status(503).json({ error: 'Predictive swing service not available' });
+    }
+    const { minScore = 50 } = req.query;
+    console.log('🔮 Running Predictive Swing Scanner...');
+    const signals = await predictiveSwingService.scanForSignals(null, parseInt(minScore));
+    res.json(signals);
+  } catch (error) {
+    console.error('Swing scan error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get only strong signals (score >= 70)
+app.get('/api/swing/strong-signals', async (req, res) => {
+  try {
+    if (!predictiveSwingService) {
+      return res.status(503).json({ error: 'Predictive swing service not available' });
+    }
+    console.log('🎯 Fetching STRONG swing signals...');
+    const signals = await predictiveSwingService.getStrongSignals();
+    res.json(signals);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Analyze specific stock with predictive swing method
+app.get('/api/swing/analyze/:symbol', async (req, res) => {
+  try {
+    if (!predictiveSwingService) {
+      return res.status(503).json({ error: 'Predictive swing service not available' });
+    }
+    const { symbol } = req.params;
+    console.log(`🔮 Predictive Swing Analysis for ${symbol}...`);
+    const analysis = await predictiveSwingService.analyzeStock(symbol);
+    if (!analysis) {
+      return res.json({ symbol, message: 'Unable to analyze - insufficient data', signalScore: 0 });
+    }
+    res.json(analysis);
+  } catch (error) {
+    res.status(500).json({ error: error.message, symbol: req.params.symbol });
+  }
+});
+
+// Quick analysis for a stock (condensed view)
+app.get('/api/swing/quick/:symbol', async (req, res) => {
+  try {
+    if (!predictiveSwingService) {
+      return res.status(503).json({ error: 'Predictive swing service not available' });
+    }
+    const { symbol } = req.params;
+    const analysis = await predictiveSwingService.getQuickAnalysis(symbol);
+    if (!analysis) {
+      return res.json({ symbol, message: 'Unable to analyze', signalScore: 0 });
+    }
+    res.json(analysis);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Analyze custom watchlist
+app.post('/api/swing/analyze-watchlist', async (req, res) => {
+  try {
+    if (!predictiveSwingService) {
+      return res.status(503).json({ error: 'Predictive swing service not available' });
+    }
+    const { symbols, minScore = 50 } = req.body;
+    if (!symbols || !Array.isArray(symbols)) {
+      return res.status(400).json({ error: 'symbols array required' });
+    }
+    console.log(`🔮 Analyzing watchlist of ${symbols.length} stocks with Predictive Swing...`);
+    const results = await predictiveSwingService.scanForSignals(symbols, minScore);
+    res.json(results);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

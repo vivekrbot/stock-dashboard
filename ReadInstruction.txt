@@ -1,0 +1,334 @@
+================================================================================
+         PREDICTIVE SWING TRADING SYSTEM - INTEGRATION GUIDE
+================================================================================
+
+Based on Pine Script: "Advanced Predictive Swing System"
+Integrated: February 2026
+
+================================================================================
+                              OVERVIEW
+================================================================================
+
+This system translates the TradingView Pine Script indicator into a full-stack
+web application with real-time stock analysis capabilities for NSE/Indian stocks.
+
+CORE FEATURES:
+  • Linear Regression Price Prediction with confidence bands
+  • Multi-timeframe EMA analysis (21/50/200)
+  • Composite Buy/Sell Scoring (0-100)
+  • Momentum & Acceleration analysis
+  • Volatility-adjusted predictions
+  • RSI Divergence detection
+  • MACD Histogram momentum tracking
+  • ADX Trend strength measurement
+  • Volume Price Trend (VPT) analysis
+  • Dynamic Entry/Target/Stop-Loss calculation
+
+================================================================================
+                           FILE STRUCTURE
+================================================================================
+
+BACKEND (Node.js/Express):
+─────────────────────────────────────────────────────────────────────────────────
+/src/services/predictiveSwingService.js    <- MAIN: Pine Script logic converted
+/src/services/enhancedPredictionEngine.js  <- Updated: Hybrid signals method
+/src/server.js                             <- Updated: New API endpoints
+
+FRONTEND (React/Vite):
+─────────────────────────────────────────────────────────────────────────────────
+/frontend/src/components/PredictiveSwingPanel.jsx  <- Main dashboard component
+/frontend/src/components/SwingIndicator.jsx        <- Compact badge component
+/frontend/src/App.jsx                              <- Updated: New tab added
+
+================================================================================
+                           API ENDPOINTS
+================================================================================
+
+1. GET /api/swing/signals?minScore=50
+   - Scans all stocks in watchlist
+   - Returns signals with score >= minScore
+   - Response includes: strongBuys, strongSells, moderateBuys, moderateSells
+
+2. GET /api/swing/strong-signals
+   - Returns only signals with score >= 70
+   - Highest conviction trades only
+
+3. GET /api/swing/analyze/:symbol
+   - Full predictive swing analysis for single stock
+   - Returns complete technical breakdown
+
+4. GET /api/swing/quick/:symbol
+   - Condensed analysis (symbol, price, signal, score, entry/target/sl)
+   - Ideal for quick lookups or embedding
+
+5. POST /api/swing/analyze-watchlist
+   - Body: { symbols: ["RELIANCE", "TCS", ...], minScore: 50 }
+   - Analyze custom list of stocks
+
+6. GET /api/ai/hybrid-signals
+   - Combines Premium Signals + Predictive Swing
+   - Aligned signals get boosted confidence
+   - Highest accuracy mode
+
+================================================================================
+                         SCORING SYSTEM
+================================================================================
+
+The composite score (0-100) matches Pine Script exactly:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  BUY SCORE COMPONENTS                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  TREND (0-30 points)                                                        │
+│    • Price > EMA21  → +10                                                   │
+│    • Price > EMA50  → +10                                                   │
+│    • Price > EMA200 → +10                                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  MOMENTUM (0-25 points)                                                     │
+│    • MACD > Signal        → +10                                             │
+│    • MACD Increasing      → +5                                              │
+│    • Momentum Accel > 0   → +5                                              │
+│    • RSI 50-70 (healthy)  → +5                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  STRENGTH (0-20 points)                                                     │
+│    • ADX > 25 + DI+ > DI- → +10                                             │
+│    • ADX > 35 (very strong) → +10                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  VOLUME (0-15 points)                                                       │
+│    • Volume > 1.5x avg    → +5                                              │
+│    • Volume > 2.0x avg    → +5                                              │
+│    • VPT Bullish          → +5                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  PREDICTION (0-10 points)                                                   │
+│    • Predicted > Current  → +5                                              │
+│    • LinReg Slope > 0     → +5                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SIGNAL THRESHOLDS:
+  • Score >= 80  → VERY STRONG signal
+  • Score >= 70  → STRONG signal (strongBuy/strongSell)
+  • Score >= 60  → MODERATE signal
+  • Score >= 50  → DEVELOPING signal
+  • Score < 50   → WEAK (not displayed)
+
+================================================================================
+                      LINEAR REGRESSION PREDICTION
+================================================================================
+
+Formula (matching Pine Script):
+─────────────────────────────────────────────────────────────────────────────────
+
+  predictedPrice = linRegValue + (slope × predictionBars)
+
+  Where:
+    • linRegValue = Linear regression value at current bar
+    • slope = Rate of change per bar
+    • predictionBars = 10 (default, configurable)
+
+Confidence Bands:
+─────────────────────────────────────────────────────────────────────────────────
+
+  predictionError = stdDev × √(1 + 1/n + bars²/variance)
+  
+  upperBand = predictedPrice + (zScore × predictionError)
+  lowerBand = predictedPrice - (zScore × predictionError)
+
+  Z-Scores:
+    • 68% confidence → z = 1.0
+    • 90% confidence → z = 1.645
+    • 95% confidence → z = 1.96
+    • 99% confidence → z = 2.58
+
+Volatility Adjustment:
+─────────────────────────────────────────────────────────────────────────────────
+
+  If ATR > 1.2 × avgATR(50) → HIGH volatility  → multiply prediction by 1.2
+  If ATR < 0.8 × avgATR(50) → LOW volatility   → multiply prediction by 0.8
+  Otherwise                 → NORMAL           → no adjustment
+
+================================================================================
+                       TRADE SETUP CALCULATION
+================================================================================
+
+For LONG (BUY) positions:
+─────────────────────────────────────────────────────────────────────────────────
+
+  structureStop = Lowest(low, 10) - (ATR × 0.5)
+  atrStop = currentPrice - (ATR × atrMultiplier)
+  stopLoss = MAX(structureStop, atrStop)
+  
+  risk = currentPrice - stopLoss
+  target = MAX(adjustedPrediction, currentPrice + risk × riskReward)
+
+For SHORT (SELL) positions:
+─────────────────────────────────────────────────────────────────────────────────
+
+  structureStop = Highest(high, 10) + (ATR × 0.5)
+  atrStop = currentPrice + (ATR × atrMultiplier)
+  stopLoss = MIN(structureStop, atrStop)
+  
+  risk = stopLoss - currentPrice
+  target = MIN(adjustedPrediction, currentPrice - risk × riskReward)
+
+Default Parameters:
+  • riskReward = 2.0 (1:2 R:R ratio)
+  • atrMultiplier = 1.5
+
+================================================================================
+                         HOW TO USE
+================================================================================
+
+STEP 1: Start the Backend Server
+─────────────────────────────────────────────────────────────────────────────────
+  $ cd /Volumes/Xserver/CodeBase/stock-dashboard
+  $ npm install
+  $ npm run dev
+  
+  Server runs on: http://localhost:3001
+
+STEP 2: Start the Frontend
+─────────────────────────────────────────────────────────────────────────────────
+  $ cd frontend
+  $ npm install
+  $ npm run dev
+  
+  App runs on: http://localhost:5173
+
+STEP 3: Navigate to Swing Signals Tab
+─────────────────────────────────────────────────────────────────────────────────
+  1. Open app in browser
+  2. Click "Swing Signals" tab (purple icon)
+  3. Click "Scan Signals" button
+  4. Wait 30-60 seconds for analysis
+  5. View results with filters (Strong Buys, Strong Sells, etc.)
+
+STEP 4: Analyze Individual Stock
+─────────────────────────────────────────────────────────────────────────────────
+  Option A: Click on any signal card to expand details
+  Option B: Use API directly: GET /api/swing/analyze/RELIANCE
+
+STEP 5: Send to Risk Calculator
+─────────────────────────────────────────────────────────────────────────────────
+  1. Expand a signal card
+  2. Click "Risk Calculator" button
+  3. Entry/Target/Stop are auto-filled
+  4. Enter your capital and risk % to calculate position size
+
+================================================================================
+                      CONFIGURATION OPTIONS
+================================================================================
+
+Located in: /src/services/predictiveSwingService.js
+
+this.config = {
+  // Risk parameters
+  riskReward: 2.0,           // Target R:R ratio (1:2)
+  atrMultiplier: 1.5,        // ATR multiplier for stop loss
+  
+  // Prediction parameters
+  predictionBars: 10,        // Bars forward to predict
+  regressionLength: 20,      // Linear regression lookback
+  confidenceLevel: 0.68,     // Default confidence band (68%)
+  
+  // EMA periods
+  ema21Period: 21,
+  ema50Period: 50,
+  ema200Period: 200,
+  
+  // Signal thresholds
+  strongSignalThreshold: 70, // Score needed for "strong" signal
+  moderateSignalThreshold: 50,
+  
+  // Data requirements
+  minDataPoints: 50          // Minimum history needed
+};
+
+================================================================================
+                      WATCHLIST CUSTOMIZATION
+================================================================================
+
+Default watchlist in predictiveSwingService.js:
+─────────────────────────────────────────────────────────────────────────────────
+
+this.watchlist = [
+  'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
+  'HINDUNILVR', 'SBIN', 'BHARTIARTL', 'KOTAKBANK', 'ITC',
+  'LT', 'AXISBANK', 'ASIANPAINT', 'MARUTI', 'SUNPHARMA',
+  'TITAN', 'BAJFINANCE', 'NESTLEIND', 'WIPRO', 'ULTRACEMCO',
+  // ... more stocks
+];
+
+To analyze custom stocks, use the POST endpoint:
+─────────────────────────────────────────────────────────────────────────────────
+
+POST /api/swing/analyze-watchlist
+Content-Type: application/json
+
+{
+  "symbols": ["ZOMATO", "PAYTM", "NYKAA"],
+  "minScore": 50
+}
+
+================================================================================
+                     HYBRID MODE (HIGHEST ACCURACY)
+================================================================================
+
+The hybrid mode combines two analysis systems:
+  1. Premium Signals (traditional indicators)
+  2. Predictive Swing (Pine Script based)
+
+When both systems AGREE:
+  • Confidence is boosted by 10%
+  • These are the highest conviction trades
+  • Signal is marked as "ALIGNED"
+
+When systems DISAGREE:
+  • Confidence is reduced by 30%
+  • Signal is marked as "DIVERGENT"
+  • Use with caution
+
+Access hybrid signals:
+  GET /api/ai/hybrid-signals
+
+================================================================================
+                          TROUBLESHOOTING
+================================================================================
+
+Issue: "Predictive swing service not available"
+─────────────────────────────────────────────────────────────────────────────────
+Solution: Check that predictiveSwingService.js exists and has no syntax errors
+
+Issue: "Insufficient historical data"
+─────────────────────────────────────────────────────────────────────────────────
+Solution: Stock needs 50+ days of history. Check historicalService is working.
+
+Issue: No signals appearing
+─────────────────────────────────────────────────────────────────────────────────
+Solution: Lower the minScore parameter (?minScore=40) to see weaker signals
+
+Issue: Scan taking too long
+─────────────────────────────────────────────────────────────────────────────────
+Solution: Rate limiting is 150ms between stocks. 45 stocks = ~7 seconds minimum.
+          Check network connectivity to data sources.
+
+================================================================================
+                           TECHNICAL NOTES
+================================================================================
+
+Data Sources (in priority order):
+  1. Moneycontrol (best for live Indian stock data)
+  2. Yahoo Finance (reliable backup)
+  3. RapidAPI (if configured)
+  4. NSE Direct (last resort)
+
+Caching:
+  • Historical data cached for 5 minutes
+  • Scan results cached in frontend until manual refresh
+
+Rate Limiting:
+  • 150ms delay between stock analyses
+  • Prevents API throttling
+
+================================================================================
+                              END OF GUIDE
+================================================================================

@@ -4,7 +4,7 @@ import LastUpdated from './LastUpdated';
 
 const API_BASE = '/api';
 
-function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
+function StockCard({ symbol, onAnalyze, onRemove, onChart, onRisk }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -137,8 +137,25 @@ function StockCard({ symbol, onAnalyze, onRemove, onChart }) {
         <button 
           onClick={() => onChart && onChart(symbol)} 
           className="btn-secondary"
+          title="View Chart"
         >
-          <Icon name="show_chart" size={16} /> Chart
+          <Icon name="show_chart" size={16} />
+        </button>
+        <button 
+          onClick={() => onRisk && onRisk({
+            symbol,
+            price: data.price,
+            high: data.high,
+            low: data.low,
+            previousClose: data.previousClose,
+            change: data.change,
+            percentChange: data.percentChange
+          })} 
+          className="btn-secondary"
+          title="Risk Calculator"
+          style={{ background: '#7c3aed22', borderColor: '#7c3aed' }}
+        >
+          <Icon name="calculate" size={16} />
         </button>
         <button 
           onClick={() => onAnalyze(symbol)} 

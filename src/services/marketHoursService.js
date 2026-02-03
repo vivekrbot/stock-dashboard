@@ -121,14 +121,15 @@ async function checkLiveMarket() {
       // Check market state from Moneycontrol response
       const priceData = data.data;
       const marketState = priceData.marketState || priceData.mktState || '';
+      const sessionId = priceData.sessionId || '';
       
-      // Only consider market OPEN if marketState explicitly indicates it
-      // Note: Moneycontrol always returns price data even when market is closed,
-      // so we can't rely on pricecurrent existence to determine market status
-      const isLive = marketState.toLowerCase().includes('open') || 
+      // Moneycontrol uses sessionId="CONTINUOUS" when market is OPEN for live trading
+      // Also check marketState for backwards compatibility
+      const isLive = sessionId.toUpperCase() === 'CONTINUOUS' ||
+                     marketState.toLowerCase().includes('open') || 
                      marketState.toLowerCase().includes('live');
       
-      console.log(`📊 Moneycontrol market check: ${marketState || 'NO_STATE'} → ${isLive ? 'LIVE' : 'CLOSED'}`);
+      console.log(`📊 Moneycontrol market check: sessionId=${sessionId}, marketState=${marketState || 'NO_STATE'} → ${isLive ? 'LIVE' : 'CLOSED'}`);
       liveMarketCache = { isLive, lastCheck: Date.now() };
       return isLive;
     }
@@ -163,13 +164,18 @@ async function checkLiveMarket() {
     if (indexData?.data) {
       // Check for explicit market state in index data
       const marketState = indexData.data.marketState || indexData.data.mktState || '';
-      if (marketState.toLowerCase().includes('open') || marketState.toLowerCase().includes('live')) {
-        console.log('📊 NIFTY index indicates market OPEN');
+      const sessionId = indexData.data.sessionId || '';
+      
+      // Check sessionId="CONTINUOUS" for live market
+      if (sessionId.toUpperCase() === 'CONTINUOUS' ||
+          marketState.toLowerCase().includes('open') || 
+          marketState.toLowerCase().includes('live')) {
+        console.log(`📊 NIFTY index indicates market OPEN (sessionId=${sessionId})`);
         liveMarketCache = { isLive: true, lastCheck: Date.now() };
         return true;
       }
       // Don't assume market is open just because price data exists
-      console.log('📊 NIFTY index data available but no live market state');
+      console.log(`📊 NIFTY index: sessionId=${sessionId}, marketState=${marketState || 'NO_STATE'} - not live`);
     }
   } catch (e) {
     // Ignore

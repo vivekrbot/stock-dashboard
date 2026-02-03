@@ -8,6 +8,7 @@ import WatchlistManager from './components/WatchlistManager';
 import TradingOpportunities from './components/TradingOpportunities';
 import MarketIntelligence from './components/MarketIntelligence';
 import PremiumSignals from './components/PremiumSignals';
+import PredictiveSwingPanel from './components/PredictiveSwingPanel';
 import RiskCalculator from './components/RiskCalculator';
 import { useToast } from './components/Toast';
 import Icon from './components/Icon';
@@ -19,6 +20,7 @@ const DEFAULT_WATCHLIST = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
 
 const TABS = [
   { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', description: 'Screener & Watchlist' },
+  { id: 'swing', icon: 'insights', label: 'Swing Signals', description: 'Predictive Analysis' },
   { id: 'signals', icon: 'star', label: 'Premium Signals', description: 'AI High-Quality Picks' },
   { id: 'intelligence', icon: 'psychology', label: 'Market Intel', description: 'Sentiment & Analysis' },
   { id: 'risk', icon: 'calculate', label: 'Risk Calculator', description: 'Position Sizing' }
@@ -76,6 +78,7 @@ function App() {
   // ==========================================
   const [dataCache, setDataCache] = useState({
     premiumSignals: { data: null, timestamp: null, loading: false },
+    predictiveSwing: { data: null, timestamp: null, loading: false },
     opportunities: { data: null, timestamp: null, loading: false, scanType: 'all' },
     marketIntelligence: { data: null, timestamp: null, loading: false }
   });
@@ -246,6 +249,15 @@ function App() {
       </nav>
 
       {/* Tab Content */}
+      {activeTab === 'swing' && (
+        <PredictiveSwingPanel 
+          onAddToWatchlist={handleAddToWatchlist}
+          onAddToRiskCalc={handleAddToRiskCalc}
+          cachedData={dataCache.predictiveSwing}
+          onUpdateCache={(updates) => updateCache('predictiveSwing', updates)}
+        />
+      )}
+
       {activeTab === 'signals' && (
         <PremiumSignals 
           onAddToWatchlist={handleAddToWatchlist}
@@ -463,6 +475,26 @@ function App() {
                     onAnalyze={setSelectedStock}
                     onRemove={handleRemoveStock}
                     onChart={setChartStock}
+                    onRisk={(stockData) => {
+                      // Calculate smart SL and target from stock data
+                      const price = stockData.price || 0;
+                      const low = stockData.low || price * 0.98;
+                      const suggestedSL = Math.min(low * 0.995, price * 0.98);
+                      const risk = price - suggestedSL;
+                      const suggestedTarget = price + (risk * 2);
+                      
+                      // Prefill RiskCalculator and switch to risk tab
+                      setRiskCalcPrefill({
+                        symbol: stockData.symbol,
+                        entry: Math.round(price * 100) / 100,
+                        stopLoss: Math.round(suggestedSL * 100) / 100,
+                        target: Math.round(suggestedTarget * 100) / 100,
+                        action: stockData.percentChange >= 0 ? 'BUY' : 'WATCH',
+                        confidence: 75
+                      });
+                      setActiveTab('risk');
+                      toast.success(`${stockData.symbol} loaded into Risk Calculator`);
+                    }}
                   />
                 ))}
               </div>
