@@ -19,8 +19,7 @@ const SECTORS = ['IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 'Metals', 
 const DEFAULT_WATCHLIST = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
 
 const TABS = [
-  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', description: 'Screener & Watchlist' },
-  { id: 'swing', icon: 'insights', label: 'Swing Signals', description: 'Predictive Analysis' },
+  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', description: 'Screener • Watchlist • Swing Signals' },
   { id: 'signals', icon: 'star', label: 'Premium Signals', description: 'AI High-Quality Picks' },
   { id: 'intelligence', icon: 'psychology', label: 'Market Intel', description: 'Sentiment & Analysis' },
   { id: 'risk', icon: 'calculate', label: 'Risk Calculator', description: 'Position Sizing' }
@@ -249,15 +248,6 @@ function App() {
       </nav>
 
       {/* Tab Content */}
-      {activeTab === 'swing' && (
-        <PredictiveSwingPanel 
-          onAddToWatchlist={handleAddToWatchlist}
-          onAddToRiskCalc={handleAddToRiskCalc}
-          cachedData={dataCache.predictiveSwing}
-          onUpdateCache={(updates) => updateCache('predictiveSwing', updates)}
-        />
-      )}
-
       {activeTab === 'signals' && (
         <PremiumSignals 
           onAddToWatchlist={handleAddToWatchlist}
@@ -283,6 +273,14 @@ function App() {
 
       {activeTab === 'dashboard' && (
         <>
+          {/* Predictive Swing Analysis */}
+          <PredictiveSwingPanel 
+            onAddToWatchlist={handleAddToWatchlist}
+            onAddToRiskCalc={handleAddToRiskCalc}
+            cachedData={dataCache.predictiveSwing}
+            onUpdateCache={(updates) => updateCache('predictiveSwing', updates)}
+          />
+
           {/* AI Trading Opportunities */}
           <TradingOpportunities 
             watchlist={watchlist}
