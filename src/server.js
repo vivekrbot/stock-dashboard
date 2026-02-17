@@ -95,6 +95,37 @@ try {
   console.error('✗ Failed to load advancedTechnicalService:', e.message);
 }
 
+// New AI/ML Services
+let realTimeDataService, mlPredictionService, intelligentTradingEngine, advancedMarketScanner;
+
+try {
+  realTimeDataService = require('./services/realTimeDataService');
+  console.log('✓ realTimeDataService loaded');
+} catch (e) {
+  console.error('✗ Failed to load realTimeDataService:', e.message);
+}
+
+try {
+  mlPredictionService = require('./services/mlPredictionService');
+  console.log('✓ mlPredictionService loaded');
+} catch (e) {
+  console.error('✗ Failed to load mlPredictionService:', e.message);
+}
+
+try {
+  intelligentTradingEngine = require('./services/intelligentTradingEngine');
+  console.log('✓ intelligentTradingEngine loaded');
+} catch (e) {
+  console.error('✗ Failed to load intelligentTradingEngine:', e.message);
+}
+
+try {
+  advancedMarketScanner = require('./services/advancedMarketScanner');
+  console.log('✓ advancedMarketScanner loaded');
+} catch (e) {
+  console.error('✗ Failed to load advancedMarketScanner:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -138,18 +169,80 @@ app.get('/api/market/status', async (req, res) => {
 // Root route
 app.get('/', (req, res) => {
   res.json({ 
-    name: 'Stock Dashboard API',
-    version: '2.0.0',
-    endpoints: [
-      '/api/health',
-      '/api/market/status',
-      '/api/stock/:symbol',
-      '/api/stock/:symbol/history?range=1d|5d|1mo|3mo|6mo|1y',
-      '/api/stock/:symbol/intraday',
-      '/api/stock/:symbol/analyze',
-      '/api/screener/strategies',
-      '/api/screener/find-opportunities'
-    ]
+    name: 'Stock Dashboard API - AI Trading System',
+    version: '3.0.0',
+    description: 'Advanced AI-powered stock trading platform with ML predictions and multi-strategy analysis',
+    features: [
+      'Real-time data with intelligent caching',
+      'Machine Learning price predictions',
+      'Multi-strategy trading analysis (Intraday, Swing, Short-term, Long-term)',
+      'Advanced market scanner with early mover detection',
+      'Backtesting engine',
+      'Risk management tools'
+    ],
+    endpoints: {
+      core: [
+        'GET /api/health',
+        'GET /api/market/status'
+      ],
+      stock: [
+        'GET /api/stock/:symbol',
+        'GET /api/stock/:symbol/details',
+        'GET /api/stock/:symbol/history?range=1d|5d|1mo|3mo|6mo|1y',
+        'GET /api/stock/:symbol/intraday',
+        'GET /api/stock/:symbol/analyze',
+        'POST /api/stocks/batch'
+      ],
+      realtime: [
+        'GET /api/realtime/:symbol',
+        'GET /api/realtime/:symbol/complete',
+        'POST /api/realtime/batch',
+        'GET /api/realtime/cache/stats',
+        'POST /api/realtime/cache/clear'
+      ],
+      ml: [
+        'GET /api/ml/predict/:symbol',
+        'POST /api/ml/predict-batch',
+        'POST /api/ml/train/:symbol',
+        'GET /api/ml/stats'
+      ],
+      trading: [
+        'GET /api/trading/analyze/:symbol?strategies=SWING,SHORT_TERM&capital=100000',
+        'GET /api/trading/scan/:strategy?maxResults=10&minScore=70',
+        'POST /api/trading/master-scan',
+        'POST /api/trading/backtest/:symbol',
+        'GET /api/trading/strategies'
+      ],
+      scanner: [
+        'GET /api/scanner/universe',
+        'POST /api/screener/find-opportunities',
+        'GET /api/screener/strategies'
+      ],
+      ai: [
+        'GET /api/ai/opportunities',
+        'GET /api/ai/opportunities/bullish',
+        'GET /api/ai/opportunities/bearish',
+        'GET /api/ai/analyze/:symbol',
+        'POST /api/ai/analyze-watchlist',
+        'GET /api/ai/patterns/:symbol',
+        'GET /api/ai/premium-signals',
+        'GET /api/ai/detailed/:symbol',
+        'GET /api/ai/technicals/:symbol'
+      ],
+      market: [
+        'GET /api/market/sentiment',
+        'GET /api/market/sectors',
+        'GET /api/market/trading-conditions',
+        'GET /api/market/fear-greed'
+      ],
+      risk: [
+        'POST /api/risk/position-size',
+        'POST /api/risk/trade-risk',
+        'POST /api/risk/pre-trade-check',
+        'POST /api/risk/daily-check',
+        'POST /api/risk/portfolio'
+      ]
+    }
   });
 });
 
@@ -630,6 +723,250 @@ app.post('/api/risk/portfolio', (req, res) => {
     const { positions, capital } = req.body;
     const result = riskManagementService.assessPortfolioRisk(positions, capital);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================
+// ADVANCED AI/ML TRADING SYSTEM ENDPOINTS
+// =============================================
+
+// ML Prediction for single stock
+app.get('/api/ml/predict/:symbol', async (req, res) => {
+  try {
+    if (!mlPredictionService) {
+      return res.status(503).json({ error: 'ML prediction service not available' });
+    }
+    const { symbol } = req.params;
+    console.log(`🤖 ML prediction for ${symbol}...`);
+    const prediction = await mlPredictionService.predict(symbol);
+    res.json(prediction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Batch ML predictions
+app.post('/api/ml/predict-batch', async (req, res) => {
+  try {
+    if (!mlPredictionService) {
+      return res.status(503).json({ error: 'ML prediction service not available' });
+    }
+    const { symbols } = req.body;
+    if (!symbols || !Array.isArray(symbols)) {
+      return res.status(400).json({ error: 'symbols array required' });
+    }
+    console.log(`🤖 Batch ML prediction for ${symbols.length} stocks...`);
+    const predictions = await mlPredictionService.batchPredict(symbols);
+    res.json({ predictions, timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Train ML model for symbol
+app.post('/api/ml/train/:symbol', async (req, res) => {
+  try {
+    if (!mlPredictionService) {
+      return res.status(503).json({ error: 'ML prediction service not available' });
+    }
+    const { symbol } = req.params;
+    console.log(`🧠 Training ML model for ${symbol}...`);
+    const result = await mlPredictionService.trainModel(symbol);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get ML model stats
+app.get('/api/ml/stats', (req, res) => {
+  try {
+    if (!mlPredictionService) {
+      return res.status(503).json({ error: 'ML prediction service not available' });
+    }
+    const stats = mlPredictionService.getStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Intelligent Trading Analysis
+app.get('/api/trading/analyze/:symbol', async (req, res) => {
+  try {
+    if (!intelligentTradingEngine) {
+      return res.status(503).json({ error: 'Trading engine not available' });
+    }
+    const { symbol } = req.params;
+    const { strategies, capital } = req.query;
+    
+    const options = {};
+    if (strategies) options.strategies = strategies.split(',');
+    if (capital) options.capital = parseFloat(capital);
+    
+    console.log(`📊 Intelligent analysis for ${symbol}...`);
+    const analysis = await intelligentTradingEngine.analyzeStock(symbol, options);
+    res.json(analysis);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Quick strategy scan
+app.get('/api/trading/scan/:strategy', async (req, res) => {
+  try {
+    if (!advancedMarketScanner) {
+      return res.status(503).json({ error: 'Market scanner not available' });
+    }
+    const { strategy } = req.params;
+    const { maxResults, minScore } = req.query;
+    
+    const options = {};
+    if (maxResults) options.maxResults = parseInt(maxResults);
+    if (minScore) options.minScore = parseInt(minScore);
+    
+    console.log(`⚡ Quick ${strategy} scan...`);
+    const result = await advancedMarketScanner.quickScan(strategy, options);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Master market scan - finds ALL opportunities
+app.post('/api/trading/master-scan', async (req, res) => {
+  try {
+    if (!advancedMarketScanner) {
+      return res.status(503).json({ error: 'Market scanner not available' });
+    }
+    
+    const options = req.body || {};
+    console.log('🔍 Starting MASTER SCAN...');
+    const result = await advancedMarketScanner.masterScan(options);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Backtest trading strategy
+app.post('/api/trading/backtest/:symbol', async (req, res) => {
+  try {
+    if (!intelligentTradingEngine) {
+      return res.status(503).json({ error: 'Trading engine not available' });
+    }
+    const { symbol } = req.params;
+    const { strategy, period, capital } = req.body;
+    
+    console.log(`📈 Backtesting ${strategy} on ${symbol}...`);
+    const result = await intelligentTradingEngine.backtest(symbol, strategy, { period, capital });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get available strategies
+app.get('/api/trading/strategies', (req, res) => {
+  try {
+    if (!intelligentTradingEngine) {
+      return res.status(503).json({ error: 'Trading engine not available' });
+    }
+    const strategies = intelligentTradingEngine.getStrategies();
+    res.json(strategies);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Real-time data with smart caching
+app.get('/api/realtime/:symbol', async (req, res) => {
+  try {
+    if (!realTimeDataService) {
+      return res.status(503).json({ error: 'Real-time data service not available' });
+    }
+    const { symbol } = req.params;
+    const data = await realTimeDataService.getRealtimePrice(symbol);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Batch real-time prices
+app.post('/api/realtime/batch', async (req, res) => {
+  try {
+    if (!realTimeDataService) {
+      return res.status(503).json({ error: 'Real-time data service not available' });
+    }
+    const { symbols } = req.body;
+    if (!symbols || !Array.isArray(symbols)) {
+      return res.status(400).json({ error: 'symbols array required' });
+    }
+    const data = await realTimeDataService.getBatchPrices(symbols);
+    res.json({ data, timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Complete stock data (price + technical + historical)
+app.get('/api/realtime/:symbol/complete', async (req, res) => {
+  try {
+    if (!realTimeDataService) {
+      return res.status(503).json({ error: 'Real-time data service not available' });
+    }
+    const { symbol } = req.params;
+    const { forceRefresh, includeHistory, historyRange } = req.query;
+    
+    const options = {};
+    if (forceRefresh === 'true') options.forceRefresh = true;
+    if (includeHistory === 'false') options.includeHistory = false;
+    if (historyRange) options.historyRange = historyRange;
+    
+    const data = await realTimeDataService.getCompleteStockData(symbol, options);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cache statistics
+app.get('/api/realtime/cache/stats', (req, res) => {
+  try {
+    if (!realTimeDataService) {
+      return res.status(503).json({ error: 'Real-time data service not available' });
+    }
+    const stats = realTimeDataService.getCacheStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Clear cache
+app.post('/api/realtime/cache/clear', (req, res) => {
+  try {
+    if (!realTimeDataService) {
+      return res.status(503).json({ error: 'Real-time data service not available' });
+    }
+    realTimeDataService.clearCache();
+    res.json({ message: 'Cache cleared', timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Stock universe info
+app.get('/api/scanner/universe', (req, res) => {
+  try {
+    if (!advancedMarketScanner) {
+      return res.status(503).json({ error: 'Market scanner not available' });
+    }
+    const universe = advancedMarketScanner.getStockUniverse();
+    res.json(universe);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
