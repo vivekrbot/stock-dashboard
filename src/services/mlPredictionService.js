@@ -228,8 +228,8 @@ class MLPredictionService {
     const closes = historicalData.history.map(d => d.close);
     const currentPrice = closes[closes.length - 1];
     const volatility = stats.standardDeviation(closes.slice(-20).map((c, i, arr) => 
-      i === 0 ? 0 : ((c - arr[i-1]) / arr[i-1]) * 100
-    ));
+      i === 0 ? null : ((c - arr[i-1]) / arr[i-1]) * 100
+    ).filter(v => v !== null));
     
     const expectedMove = prediction === 'BULLISH' ? volatility : prediction === 'BEARISH' ? -volatility : 0;
     const targetPrice = currentPrice * (1 + expectedMove / 100);

@@ -253,10 +253,10 @@ class AdvancedMarketScanner {
     // 3. Price testing support/resistance multiple times
     const closes = history.map(d => d.close);
     const priceLevel = currentPrice;
-    const touches = closes.filter(c => Math.abs(c - priceLevel) / priceLevel < 0.02).length;
+    const priceLevelTouches = closes.filter(c => Math.abs(c - priceLevel) / priceLevel < 0.02).length;
     
-    if (touches >= 3) {
-      signals.push(`Tested ${priceLevel.toFixed(2)} level ${touches} times`);
+    if (priceLevelTouches >= 3) {
+      signals.push(`Tested ${priceLevel.toFixed(2)} level ${priceLevelTouches} times`);
       score += 15;
     }
     

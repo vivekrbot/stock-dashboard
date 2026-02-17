@@ -5,7 +5,7 @@ Advanced NSE Stock Analysis & Trading Platform with **real-time data**, **Machin
 ## 🚀 New Features (v3.0)
 
 ### ✨ AI & Machine Learning
-- **Neural Network Predictions**: LSTM-based price prediction using Synaptic.js
+- **Neural Network Predictions**: Feedforward neural network using Synaptic.js
 - **Multi-indicator ML Models**: 15 technical indicators as features
 - **Confidence Scoring**: Probabilistic predictions (Bearish/Neutral/Bullish)
 - **Auto-training**: Models train on 6 months of historical data

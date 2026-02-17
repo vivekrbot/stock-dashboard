@@ -242,7 +242,14 @@ class IntelligentTradingEngine {
       
       // Calculate position size based on risk
       const maxRisk = capital * 0.02; // 2% max risk per trade
+      const maxPositionValue = capital * 0.2; // Max 20% of capital per position
       positionSize = Math.floor(maxRisk / risk);
+      
+      // Ensure position size doesn't exceed capital limit
+      const positionValue = positionSize * entry;
+      if (positionValue > maxPositionValue) {
+        positionSize = Math.floor(maxPositionValue / entry);
+      }
     }
     
     return {

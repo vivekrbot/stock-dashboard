@@ -4,10 +4,10 @@ import Icon from './Icon';
 const API_BASE = '/api';
 
 const STRATEGIES = [
-  { id: 'INTRADAY', name: 'Intraday', emoji: '⚡', color: 'purple' },
-  { id: 'SWING', name: 'Swing', emoji: '🎯', color: 'blue' },
-  { id: 'SHORT_TERM', name: 'Short-term', emoji: '📊', color: 'green' },
-  { id: 'LONG_TERM', name: 'Long-term', emoji: '📈', color: 'indigo' }
+  { id: 'INTRADAY', name: 'Intraday', emoji: '⚡', colorClass: 'bg-purple-600' },
+  { id: 'SWING', name: 'Swing', emoji: '🎯', colorClass: 'bg-blue-600' },
+  { id: 'SHORT_TERM', name: 'Short-term', emoji: '📊', colorClass: 'bg-green-600' },
+  { id: 'LONG_TERM', name: 'Long-term', emoji: '📈', colorClass: 'bg-indigo-600' }
 ];
 
 export default function IntelligentTradingDashboard({ symbol, onClose }) {
@@ -59,11 +59,6 @@ export default function IntelligentTradingDashboard({ symbol, onClose }) {
     if (score >= 60) return 'text-yellow-600';
     if (score >= 40) return 'text-orange-600';
     return 'text-red-600';
-  };
-
-  const getStrategyColor = (strategyId) => {
-    const strategy = STRATEGIES.find(s => s.id === strategyId);
-    return strategy?.color || 'gray';
   };
 
   if (loading) {
@@ -231,7 +226,7 @@ export default function IntelligentTradingDashboard({ symbol, onClose }) {
                     onClick={() => setSelectedStrategy(strategy.id)}
                     className={`px-4 py-2 rounded-lg font-medium transition-all ${
                       selectedStrategy === strategy.id
-                        ? `bg-${strategy.color}-600 text-white shadow-lg scale-105`
+                        ? `${strategy.colorClass} text-white shadow-lg scale-105`
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
