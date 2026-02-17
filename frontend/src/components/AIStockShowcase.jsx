@@ -46,6 +46,8 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
   const [indicatorFilters, setIndicatorFilters] = useState({
     minRSI: '',
     maxRSI: '',
+    minPrice: '',
+    maxPrice: '',
     priceAboveSMA: false,
     bullishMACD: false,
     positiveMomentum: false,
@@ -217,6 +219,26 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
         filtered = filtered.filter(opp => {
           const rsi = opp.rsi || opp.technicals?.rsi;
           return rsi !== undefined && rsi <= maxRSI;
+        });
+      }
+    }
+    
+    // Price range filters
+    if (indicatorFilters.minPrice !== '') {
+      const minPrice = parseFloat(indicatorFilters.minPrice);
+      if (!isNaN(minPrice)) {
+        filtered = filtered.filter(opp => {
+          const price = opp.currentPrice || opp.entry;
+          return price !== undefined && price >= minPrice;
+        });
+      }
+    }
+    if (indicatorFilters.maxPrice !== '') {
+      const maxPrice = parseFloat(indicatorFilters.maxPrice);
+      if (!isNaN(maxPrice)) {
+        filtered = filtered.filter(opp => {
+          const price = opp.currentPrice || opp.entry;
+          return price !== undefined && price <= maxPrice;
         });
       }
     }
@@ -458,6 +480,24 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                 />
               </div>
             </div>
+            <div className="filter-item">
+              <label><Icon name="currency_rupee" size={16} /> Price Range (₹)</label>
+              <div className="filter-range">
+                <input
+                  type="number"
+                  value={indicatorFilters.minPrice}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, minPrice: e.target.value}))}
+                  placeholder="Min (e.g. 100)"
+                />
+                <span>to</span>
+                <input
+                  type="number"
+                  value={indicatorFilters.maxPrice}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, maxPrice: e.target.value}))}
+                  placeholder="Max (e.g. 5000)"
+                />
+              </div>
+            </div>
             <div className="filter-item-checks">
               <label className="checkbox-filter">
                 <input
@@ -517,7 +557,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                 onClick={() => {
                   setSearchQuery('');
                   setIndicatorFilters({
-                    minRSI: '', maxRSI: '', priceAboveSMA: false, bullishMACD: false,
+                    minRSI: '', maxRSI: '', minPrice: '', maxPrice: '', priceAboveSMA: false, bullishMACD: false,
                     positiveMomentum: false, highADX: false, bollingerSqueeze: false, highVolume: false,
                   });
                 }}
