@@ -38,23 +38,32 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Stock universe selector
-  const [stockUniverse, setStockUniverse] = useState('all');
-  
-  // Advanced indicator filters
-  const [showFilters, setShowFilters] = useState(false);
-  const [indicatorFilters, setIndicatorFilters] = useState({
-    minRSI: '',
-    maxRSI: '',
-    minPrice: '',
-    maxPrice: '',
-    priceAboveSMA: false,
-    bullishMACD: false,
-    positiveMomentum: false,
-    highADX: false,
-    bollingerSqueeze: false,
-    highVolume: false,
+  // Stock universe selector - restore from sessionStorage
+  const [stockUniverse, setStockUniverse] = useState(() => {
+    try { return sessionStorage.getItem('showcase_universe') || 'nifty50'; } catch { return 'nifty50'; }
   });
+  
+  // Advanced indicator filters - shown by default for filter-first discovery
+  const [showFilters, setShowFilters] = useState(true);
+  const [indicatorFilters, setIndicatorFilters] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('showcase_filters');
+      return saved ? JSON.parse(saved) : {
+        minRSI: '', maxRSI: '', minPrice: '', maxPrice: '',
+        priceAboveSMA: false, bullishMACD: false, positiveMomentum: false,
+        highADX: false, bollingerSqueeze: false, highVolume: false,
+      };
+    } catch {
+      return {
+        minRSI: '', maxRSI: '', minPrice: '', maxPrice: '',
+        priceAboveSMA: false, bullishMACD: false, positiveMomentum: false,
+        highADX: false, bollingerSqueeze: false, highVolume: false,
+      };
+    }
+  });
+
+  // Temp cache: stores scan results per scanType+universe key to avoid re-fetching on tab switch
+  const tempCacheRef = useRef({});
 
   // Progress tracking
   const [progress, setProgress] = useState(0);
@@ -103,6 +112,18 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
     };
   }, []);
 
+  // Persist universe and filter preferences to sessionStorage
+  useEffect(() => {
+    try { sessionStorage.setItem('showcase_universe', stockUniverse); } catch { /* ignore */ }
+  }, [stockUniverse]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('showcase_filters', JSON.stringify(indicatorFilters)); } catch { /* ignore */ }
+  }, [indicatorFilters]);
+
+  // Helper to build a cache key for temp store
+  const getCacheKey = (type, universe) => `${type}_${universe}`;
+
   const scanForOpportunities = async (type = scanType, universe = stockUniverse) => {
     setLocalLoading(true);
     onUpdateCache({ loading: true });
@@ -140,8 +161,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
         timestamp: data.timestamp
       };
       
-      // Update cache with fetched data
-      onUpdateCache({ 
+      const cachePayload = {
         data: { 
           opportunities: data.opportunities || [], 
           scanStats: stats,
@@ -150,7 +170,13 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
         timestamp: new Date().toISOString(),
         loading: false,
         scanType: type
-      });
+      };
+
+      // Save to temp cache for instant tab switching
+      tempCacheRef.current[getCacheKey(type, universe)] = cachePayload;
+
+      // Update parent cache
+      onUpdateCache(cachePayload);
       
       setVisibleCount(CARDS_PER_PAGE);
       stopProgress();
@@ -167,26 +193,49 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
     setLocalLoading(false);
   };
 
-  // Check if we have actual data
+  // Track whether user has initiated at least one scan
   const hasData = opportunities.length > 0 || scanStats;
+  const [hasScanned, setHasScanned] = useState(hasData);
 
-  // Only fetch on initial mount if no data exists
+  // Sync hasScanned when parent data arrives (e.g. from cached props)
   useEffect(() => {
-    if (!hasData && !loading && !localLoading) {
-      scanForOpportunities();
-    }
-  }, []);
+    if (hasData) setHasScanned(true);
+  }, [hasData]);
 
-  // Handle scan type change
-  const handleScanTypeChange = (type) => {
-    setScanType(type);
-    scanForOpportunities(type, stockUniverse);
+  // Restore cached results for a given scanType + universe, returns true if cache hit
+  const restoreCachedResults = useCallback((type, universe) => {
+    const key = getCacheKey(type, universe);
+    const cached = tempCacheRef.current[key];
+    if (cached) {
+      onUpdateCache(cached);
+      return true;
+    }
+    return false;
+  }, [onUpdateCache]);
+
+  // Handle explicit scan button click
+  const handleScan = (universe = stockUniverse) => {
+    setHasScanned(true);
+    scanForOpportunities(scanType, universe);
   };
 
-  // Handle universe change - triggers new scan
+  // Handle "Scan All" button - scans entire NSE universe
+  const handleScanAll = () => {
+    setStockUniverse('all');
+    setHasScanned(true);
+    scanForOpportunities(scanType, 'all');
+  };
+
+  // Handle scan type tab change - use temp cache if available, otherwise just switch
+  const handleScanTypeChange = (type) => {
+    setScanType(type);
+    restoreCachedResults(type, stockUniverse);
+  };
+
+  // Handle universe change - just update selection, don't auto-scan
   const handleUniverseChange = (universe) => {
     setStockUniverse(universe);
-    scanForOpportunities(scanType, universe);
+    restoreCachedResults(scanType, universe);
   };
 
   // Apply client-side search and indicator filters
@@ -375,7 +424,9 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
               { id: 'bullish', label: 'Buy', icon: 'trending_up' },
               { id: 'bearish', label: 'Sell', icon: 'trending_down' },
               ...(watchlist.length > 0 ? [{ id: 'watchlist', label: 'Watchlist', icon: 'bookmark' }] : [])
-            ].map(type => (
+            ].map(type => {
+              const hasCached = !!tempCacheRef.current[getCacheKey(type.id, stockUniverse)];
+              return (
               <button
                 key={type.id}
                 onClick={() => handleScanTypeChange(type.id)}
@@ -390,17 +441,30 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   fontSize: '0.85rem',
                   boxShadow: scanType === type.id ? 'var(--shadow-sm)' : 'none',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  position: 'relative'
                 }}
               >
                 {type.label}
+                {hasCached && scanType !== type.id && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '4px',
+                    right: '4px',
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: 'var(--accent-green)'
+                  }} title="Cached results available" />
+                )}
               </button>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Scan Button */}
+          {/* Scan Selected Index Button */}
           <button
-            onClick={() => scanForOpportunities()}
+            onClick={() => handleScan()}
             disabled={isLoading}
             style={{
               padding: '10px 20px',
@@ -422,21 +486,52 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                 Scanning...
               </>
             ) : (
-              <><Icon name="gps_fixed" size={16} /> Scan</>
+              <><Icon name="gps_fixed" size={16} /> Scan {STOCK_UNIVERSE_OPTIONS.find(o => o.id === stockUniverse)?.label || 'Selected'}</>
             )}
           </button>
+
+          {/* Scan All Button */}
+          {stockUniverse !== 'all' && (
+            <button
+              onClick={handleScanAll}
+              disabled={isLoading}
+              style={{
+                padding: '10px 16px',
+                background: isLoading ? 'var(--bg-secondary)' : 'linear-gradient(135deg, #6366F1, #4F46E5)',
+                color: isLoading ? 'var(--text-muted)' : 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: '600',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.85rem'
+              }}
+            >
+              <Icon name="select_all" size={16} /> Scan All
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Search & Filter Bar */}
+      {/* Filter Controls Bar */}
       <div className="showcase-search-bar">
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`showcase-filter-toggle ${showFilters ? 'active' : ''}`}
+          style={{ order: -1 }}
+        >
+          <Icon name="tune" size={18} /> Smart Filters {showFilters ? '▲' : '▼'}
+        </button>
         <div className="search-input-wrapper">
           <Icon name="search" size={20} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter results by symbol or company name..."
+            placeholder="Optional: narrow by symbol or name..."
             className="ai-search-input"
           />
           {searchQuery && (
@@ -449,13 +544,6 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
             </button>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setShowFilters(!showFilters)}
-          className={`showcase-filter-toggle ${showFilters ? 'active' : ''}`}
-        >
-          <Icon name="tune" size={18} /> Indicators {showFilters ? '▲' : '▼'}
-        </button>
       </div>
 
       {/* Advanced Indicator Filters */}
@@ -681,7 +769,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
         }}>
           <Icon name="warning" size={16} /> {error}
           <button 
-            onClick={() => scanForOpportunities()}
+            onClick={() => handleScan()}
             style={{
               marginLeft: '12px',
               padding: '6px 12px',
@@ -705,7 +793,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
           color: 'var(--text-muted)'
         }}>
           <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
-          <p>Analyzing all NSE stocks with AI-powered indicators...</p>
+          <p>Analyzing {STOCK_UNIVERSE_OPTIONS.find(o => o.id === stockUniverse)?.label || 'NSE'} stocks with AI-powered indicators...</p>
           <p style={{ fontSize: '0.85rem', marginTop: '8px' }}>
             Using MACD, RSI, Bollinger, Stochastic, ADX, VWAP & pattern analysis
           </p>
@@ -1225,20 +1313,73 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
         </>
       )}
 
-      {/* Empty State */}
+      {/* Empty State / Welcome State */}
       {!isLoading && filteredOpportunities.length === 0 && !error && (
         <div style={{
           padding: '60px 20px',
           textAlign: 'center',
           color: 'var(--text-muted)'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}><Icon name="search" size={48} /></div>
-          <p style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>
-            {opportunities.length > 0 ? 'No results match your filters' : 'No opportunities found'}
-          </p>
-          <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>
-            {opportunities.length > 0 ? 'Try adjusting your search or filter criteria' : 'Try scanning again or change the stock universe'}
-          </p>
+          {!hasScanned ? (
+            <>
+              <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.6 }}><Icon name="rocket_launch" size={48} /></div>
+              <p style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
+                Select an index and click Scan to start
+              </p>
+              <p style={{ fontSize: '0.9rem', marginTop: '8px', maxWidth: '500px', margin: '8px auto 0' }}>
+                Choose an NSE index above ({STOCK_UNIVERSE_OPTIONS.filter(o => o.id !== 'all').map(o => o.label).join(', ')}) and hit <strong>Scan</strong> to discover AI-powered trading opportunities. 
+                Use <strong>Smart Filters</strong> to find stocks matching specific technical criteria.
+              </p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '24px' }}>
+                <button
+                  onClick={() => handleScan()}
+                  style={{
+                    padding: '12px 24px',
+                    background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.95rem'
+                  }}
+                >
+                  <Icon name="gps_fixed" size={18} /> Scan {STOCK_UNIVERSE_OPTIONS.find(o => o.id === stockUniverse)?.label}
+                </button>
+                <button
+                  onClick={handleScanAll}
+                  style={{
+                    padding: '12px 24px',
+                    background: 'linear-gradient(135deg, #6366F1, #4F46E5)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.95rem'
+                  }}
+                >
+                  <Icon name="select_all" size={18} /> Scan All NSE
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}><Icon name="search" size={48} /></div>
+              <p style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>
+                {opportunities.length > 0 ? 'No results match your filters' : 'No opportunities found for this selection'}
+              </p>
+              <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>
+                {opportunities.length > 0 ? 'Try adjusting your filter criteria above' : 'Try a different index or click Scan to refresh'}
+              </p>
+            </>
+          )}
         </div>
       )}
 
