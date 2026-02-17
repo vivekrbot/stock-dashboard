@@ -567,8 +567,8 @@ app.get('/api/ai/premium-signals', async (req, res) => {
 // Merged AI Stock Showcase - combines opportunities + premium signals from all NSE stocks
 app.get('/api/ai/stock-showcase', async (req, res) => {
   try {
-    const { filter = 'all', limit = 20 } = req.query;
-    console.log('🚀 Running unified AI Stock Showcase scan across all NSE stocks...');
+    const { filter = 'all', limit = 20, universe = 'all' } = req.query;
+    console.log(`🚀 Running unified AI Stock Showcase scan (universe: ${universe}, filter: ${filter})...`);
 
     // Run both scans in parallel for comprehensive coverage
     const [opportunitiesResult, premiumResult] = await Promise.all([
@@ -605,14 +605,32 @@ app.get('/api/ai/stock-showcase', async (req, res) => {
     // Sort by quality score
     mergedResults.sort((a, b) => b.qualityScore - a.qualityScore);
 
-    // Apply filter
-    let filtered = mergedResults;
+    // Apply universe filter (stock category)
+    let universeFiltered = mergedResults;
+    if (universe !== 'all' && screenerService) {
+      const capSizeMap = {
+        'nifty50': 'Large Cap',
+        'largeCap': 'Large Cap',
+        'midCap': 'Mid Cap',
+        'smallCap': 'Small Cap'
+      };
+      const targetCapSize = capSizeMap[universe];
+      if (targetCapSize) {
+        universeFiltered = mergedResults.filter(r => {
+          const capSize = screenerService.determineCapSize(r.symbol);
+          return capSize === targetCapSize;
+        });
+      }
+    }
+
+    // Apply signal filter
+    let filtered = universeFiltered;
     if (filter === 'bullish') {
-      filtered = mergedResults.filter(r => r.action === 'BUY' || r.type === 'bullish');
+      filtered = universeFiltered.filter(r => r.action === 'BUY' || r.type === 'bullish');
     } else if (filter === 'bearish') {
-      filtered = mergedResults.filter(r => r.action === 'SELL' || r.type === 'bearish');
+      filtered = universeFiltered.filter(r => r.action === 'SELL' || r.type === 'bearish');
     } else if (filter === 'premium') {
-      filtered = mergedResults.filter(r => r.isPremium);
+      filtered = universeFiltered.filter(r => r.isPremium);
     }
 
     const totalScanned = Math.max(opportunitiesResult.scannedCount || 0, premiumResult.totalScanned || 0);

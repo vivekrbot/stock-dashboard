@@ -1881,7 +1881,8 @@ body {
     justify-content: center;
   }
 
-  .filters-grid-inline {
+  .filters-grid-inline,
+  .showcase-filters-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1896,9 +1897,170 @@ body {
   .header-minimal h1 {
     font-size: 1.75rem;
   }
+
+  .showcase-search-bar {
+    flex-direction: column;
+  }
+
+  .showcase-select {
+    width: 100%;
+  }
 }
 
 /* Hide old tab navigation */
 .nav-tabs {
   display: none;
+}
+
+/* ==========================================
+   AI Stock Showcase - Search, Filter & Progress
+   ========================================== */
+
+.showcase-search-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: stretch;
+}
+
+.showcase-search-bar .search-input-wrapper {
+  flex: 1;
+}
+
+.showcase-select {
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-width: 160px;
+  appearance: auto;
+  transition: all 0.2s;
+}
+
+.showcase-select:hover:not(:disabled) {
+  border-color: var(--accent-orange);
+}
+
+.showcase-select:focus {
+  outline: none;
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.showcase-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.showcase-filter-toggle {
+  padding: 10px 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.showcase-filter-toggle:hover {
+  border-color: var(--accent-orange);
+  color: var(--text-primary);
+}
+
+.showcase-filter-toggle.active {
+  background: var(--accent-orange);
+  color: white;
+  border-color: var(--accent-orange);
+}
+
+.showcase-filters {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 20px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.showcase-filters-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+}
+
+/* Progress Bar */
+.showcase-progress {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.showcase-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--border-light);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.showcase-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #F59E0B, #D97706, #F59E0B);
+  background-size: 200% 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.showcase-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.showcase-progress-message {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.showcase-progress-percent {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent-orange);
 }

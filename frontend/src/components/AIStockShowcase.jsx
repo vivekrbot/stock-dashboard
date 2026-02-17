@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from './Toast';
 import Icon from './Icon';
 import LastUpdated from './LastUpdated';
@@ -6,9 +6,17 @@ import LastUpdated from './LastUpdated';
 const API_BASE = '/api';
 const CARDS_PER_PAGE = 10;
 
+const STOCK_UNIVERSE_OPTIONS = [
+  { id: 'all', label: 'All NSE Stocks', description: 'Scan entire NSE universe' },
+  { id: 'nifty50', label: 'Nifty 50', description: 'Top 50 large-cap index stocks' },
+  { id: 'largeCap', label: 'Large Cap', description: 'Large-cap stocks' },
+  { id: 'midCap', label: 'Mid Cap', description: 'Mid-cap stocks' },
+  { id: 'smallCap', label: 'Small Cap', description: 'Small-cap stocks' },
+];
+
 /**
  * AI Stock Showcase - Unified component merging Trading Opportunities + Premium Signals
- * Scans ALL NSE stocks (not just index) for both pattern-based and premium quality signals
+ * Includes integrated search, advanced filters, stock universe selector, and progress tracking
  */
 function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, cachedData = {}, onUpdateCache = () => {} }) {
   const toast = useToast();
@@ -27,21 +35,88 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
   const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE);
   const [localLoading, setLocalLoading] = useState(false);
 
-  const scanForOpportunities = async (type = scanType) => {
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Stock universe selector
+  const [stockUniverse, setStockUniverse] = useState('all');
+  
+  // Advanced indicator filters
+  const [showFilters, setShowFilters] = useState(false);
+  const [indicatorFilters, setIndicatorFilters] = useState({
+    minRSI: '',
+    maxRSI: '',
+    priceAboveSMA: false,
+    bullishMACD: false,
+    positiveMomentum: false,
+    highADX: false,
+    bollingerSqueeze: false,
+    highVolume: false,
+  });
+
+  // Progress tracking
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
+  const progressIntervalRef = useRef(null);
+
+  // Simulated progress tracking for long-running scans
+  const startProgress = useCallback((universe) => {
+    setProgress(0);
+    const isAllScan = universe === 'all';
+    const totalSteps = isAllScan ? 60 : 30;
+    let step = 0;
+    const messages = isAllScan
+      ? ['Initializing AI scan engine...', 'Fetching stock universe data...', 'Analyzing technical indicators...', 'Running MACD & RSI calculations...', 'Evaluating Bollinger Bands & ADX...', 'Computing VWAP & volume analysis...', 'Detecting candlestick patterns...', 'Running premium signal analysis...', 'Merging & ranking results...', 'Finalizing results...']
+      : ['Initializing scan...', 'Fetching stock data...', 'Analyzing indicators...', 'Computing signals...', 'Ranking results...'];
+    
+    progressIntervalRef.current = setInterval(() => {
+      step++;
+      const pct = Math.min(Math.round((step / totalSteps) * 90), 90);
+      setProgress(pct);
+      const msgIdx = Math.min(Math.floor((step / totalSteps) * messages.length), messages.length - 1);
+      setProgressMessage(messages[msgIdx]);
+      if (step >= totalSteps) {
+        clearInterval(progressIntervalRef.current);
+      }
+    }, 500);
+  }, []);
+
+  const stopProgress = useCallback(() => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setProgress(100);
+    setProgressMessage('Complete!');
+    setTimeout(() => {
+      setProgress(0);
+      setProgressMessage('');
+    }, 1000);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, []);
+
+  const scanForOpportunities = async (type = scanType, universe = stockUniverse) => {
     setLocalLoading(true);
     onUpdateCache({ loading: true });
     setError(null);
+    startProgress(universe);
     
     try {
-      let endpoint = `${API_BASE}/ai/stock-showcase?limit=30`;
+      let endpoint = `${API_BASE}/ai/stock-showcase?limit=30&universe=${universe}`;
       let options = { method: 'GET' };
 
       if (type === 'bullish') {
-        endpoint = `${API_BASE}/ai/stock-showcase?filter=bullish&limit=30`;
+        endpoint = `${API_BASE}/ai/stock-showcase?filter=bullish&limit=30&universe=${universe}`;
       } else if (type === 'bearish') {
-        endpoint = `${API_BASE}/ai/stock-showcase?filter=bearish&limit=30`;
+        endpoint = `${API_BASE}/ai/stock-showcase?filter=bearish&limit=30&universe=${universe}`;
       } else if (type === 'premium') {
-        endpoint = `${API_BASE}/ai/stock-showcase?filter=premium&limit=30`;
+        endpoint = `${API_BASE}/ai/stock-showcase?filter=premium&limit=30&universe=${universe}`;
       } else if (type === 'watchlist' && watchlist.length > 0) {
         endpoint = `${API_BASE}/ai/analyze-watchlist`;
         options = {
@@ -76,13 +151,15 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
       });
       
       setVisibleCount(CARDS_PER_PAGE);
+      stopProgress();
       
       if (data.opportunities?.length > 0) {
-        toast.success(`Found ${data.opportunities.length} AI picks across all NSE stocks`, 'Scan Complete');
+        toast.success(`Found ${data.opportunities.length} AI picks across ${universe === 'all' ? 'all NSE' : universe} stocks`, 'Scan Complete');
       }
     } catch (err) {
       setError(err.message);
       onUpdateCache({ loading: false });
+      stopProgress();
       toast.error(err.message, 'Scan Failed');
     }
     setLocalLoading(false);
@@ -101,8 +178,85 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
   // Handle scan type change
   const handleScanTypeChange = (type) => {
     setScanType(type);
-    scanForOpportunities(type);
+    scanForOpportunities(type, stockUniverse);
   };
+
+  // Handle universe change - triggers new scan
+  const handleUniverseChange = (universe) => {
+    setStockUniverse(universe);
+    scanForOpportunities(scanType, universe);
+  };
+
+  // Apply client-side search and indicator filters
+  const getFilteredOpportunities = () => {
+    let filtered = opportunities;
+    
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(opp =>
+        opp.symbol?.toLowerCase().includes(q) ||
+        opp.name?.toLowerCase().includes(q) ||
+        opp.companyName?.toLowerCase().includes(q)
+      );
+    }
+    
+    // RSI filters
+    if (indicatorFilters.minRSI !== '') {
+      const minRSI = parseFloat(indicatorFilters.minRSI);
+      if (!isNaN(minRSI)) {
+        filtered = filtered.filter(opp => {
+          const rsi = opp.rsi || opp.technicals?.rsi;
+          return rsi === undefined || rsi >= minRSI;
+        });
+      }
+    }
+    if (indicatorFilters.maxRSI !== '') {
+      const maxRSI = parseFloat(indicatorFilters.maxRSI);
+      if (!isNaN(maxRSI)) {
+        filtered = filtered.filter(opp => {
+          const rsi = opp.rsi || opp.technicals?.rsi;
+          return rsi === undefined || rsi <= maxRSI;
+        });
+      }
+    }
+    
+    // Boolean indicator filters
+    if (indicatorFilters.priceAboveSMA) {
+      filtered = filtered.filter(opp => {
+        if (opp.sma20 && opp.currentPrice) return opp.currentPrice > opp.sma20;
+        return true;
+      });
+    }
+    if (indicatorFilters.bullishMACD) {
+      filtered = filtered.filter(opp => {
+        const macd = opp.technicals?.macd;
+        if (macd) return macd.signal === 'bullish' || macd.histogram > 0;
+        if (opp.action === 'BUY') return true;
+        return true;
+      });
+    }
+    if (indicatorFilters.positiveMomentum) {
+      filtered = filtered.filter(opp => {
+        return opp.percentChange > 0 || opp.type === 'bullish' || opp.action === 'BUY';
+      });
+    }
+    if (indicatorFilters.highADX) {
+      filtered = filtered.filter(opp => {
+        const adx = opp.technicals?.adx?.adx;
+        return adx === undefined || adx >= 25;
+      });
+    }
+    if (indicatorFilters.highVolume) {
+      filtered = filtered.filter(opp => {
+        return opp.volumeRatio === undefined || opp.volumeRatio >= 1.2;
+      });
+    }
+    
+    return filtered;
+  };
+
+  const filteredOpportunities = getFilteredOpportunities();
 
   const isLoading = loading || localLoading;
 
@@ -136,7 +290,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
       padding: '24px',
       marginBottom: '24px',
       border: '1px solid var(--border-light)',
-      boxShadow: 'var(--shadow-sm)'
+      boxShadow: 'var(--shadow-lg)'
     }}>
       {/* Header */}
       <div style={{
@@ -166,16 +320,28 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
               borderRadius: 'var(--radius-full)',
               fontWeight: '600'
             }}>
-              ALL NSE STOCKS
+              {STOCK_UNIVERSE_OPTIONS.find(o => o.id === stockUniverse)?.label || 'ALL NSE STOCKS'}
             </span>
             {lastUpdated && <LastUpdated timestamp={lastUpdated} variant="badge" />}
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            AI-powered analysis across all NSE-listed stocks with entry, target & stop-loss
+            AI-powered analysis with advanced indicators, search & filtering
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Stock Universe Dropdown */}
+          <select
+            value={stockUniverse}
+            onChange={(e) => handleUniverseChange(e.target.value)}
+            disabled={isLoading}
+            className="showcase-select"
+          >
+            {STOCK_UNIVERSE_OPTIONS.map(opt => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </select>
+
           {/* Scan Type Selector */}
           <div style={{
             display: 'flex',
@@ -193,6 +359,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
               <button
                 key={type.id}
                 onClick={() => handleScanTypeChange(type.id)}
+                disabled={isLoading}
                 style={{
                   padding: '8px 16px',
                   border: 'none',
@@ -200,7 +367,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                   background: scanType === type.id ? 'var(--bg-card)' : 'transparent',
                   color: scanType === type.id ? 'var(--text-primary)' : 'var(--text-secondary)',
                   fontWeight: scanType === type.id ? '600' : '500',
-                  cursor: 'pointer',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
                   fontSize: '0.85rem',
                   boxShadow: scanType === type.id ? 'var(--shadow-sm)' : 'none',
                   transition: 'all 0.2s'
@@ -235,11 +402,159 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                 Scanning...
               </>
             ) : (
-              <><Icon name="gps_fixed" size={16} /> Scan All NSE</>
+              <><Icon name="gps_fixed" size={16} /> Scan</>
             )}
           </button>
         </div>
       </div>
+
+      {/* Search & Filter Bar */}
+      <div className="showcase-search-bar">
+        <div className="search-input-wrapper">
+          <Icon name="search" size={20} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter results by symbol or company name..."
+            className="ai-search-input"
+          />
+          {searchQuery && (
+            <button 
+              type="button" 
+              onClick={() => setSearchQuery('')}
+              className="clear-search-btn"
+            >
+              <Icon name="close" size={18} />
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`showcase-filter-toggle ${showFilters ? 'active' : ''}`}
+        >
+          <Icon name="tune" size={18} /> Indicators {showFilters ? '▲' : '▼'}
+        </button>
+      </div>
+
+      {/* Advanced Indicator Filters */}
+      {showFilters && (
+        <div className="showcase-filters">
+          <div className="showcase-filters-grid">
+            <div className="filter-item">
+              <label><Icon name="show_chart" size={16} /> RSI Range</label>
+              <div className="filter-range">
+                <input
+                  type="number"
+                  value={indicatorFilters.minRSI}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, minRSI: e.target.value}))}
+                  placeholder="Min (e.g. 30)"
+                />
+                <span>to</span>
+                <input
+                  type="number"
+                  value={indicatorFilters.maxRSI}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, maxRSI: e.target.value}))}
+                  placeholder="Max (e.g. 70)"
+                />
+              </div>
+            </div>
+            <div className="filter-item-checks">
+              <label className="checkbox-filter">
+                <input
+                  type="checkbox"
+                  checked={indicatorFilters.priceAboveSMA}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, priceAboveSMA: e.target.checked}))}
+                />
+                <Icon name="trending_up" size={16} /> Price Above SMA
+              </label>
+              <label className="checkbox-filter">
+                <input
+                  type="checkbox"
+                  checked={indicatorFilters.bullishMACD}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, bullishMACD: e.target.checked}))}
+                />
+                <Icon name="analytics" size={16} /> Bullish MACD
+              </label>
+              <label className="checkbox-filter">
+                <input
+                  type="checkbox"
+                  checked={indicatorFilters.positiveMomentum}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, positiveMomentum: e.target.checked}))}
+                />
+                <Icon name="rocket_launch" size={16} /> Positive Momentum
+              </label>
+              <label className="checkbox-filter">
+                <input
+                  type="checkbox"
+                  checked={indicatorFilters.highADX}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, highADX: e.target.checked}))}
+                />
+                <Icon name="speed" size={16} /> Strong Trend (ADX≥25)
+              </label>
+              <label className="checkbox-filter">
+                <input
+                  type="checkbox"
+                  checked={indicatorFilters.highVolume}
+                  onChange={(e) => setIndicatorFilters(prev => ({...prev, highVolume: e.target.checked}))}
+                />
+                <Icon name="bar_chart" size={16} /> High Volume
+              </label>
+            </div>
+          </div>
+          {(searchQuery || Object.values(indicatorFilters).some(v => v === true || (v !== '' && v !== false))) && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginTop: '12px',
+              paddingTop: '12px',
+              borderTop: '1px solid var(--border-light)'
+            }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <Icon name="filter_list" size={16} /> Showing {filteredOpportunities.length} of {opportunities.length} results
+              </span>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setIndicatorFilters({
+                    minRSI: '', maxRSI: '', priceAboveSMA: false, bullishMACD: false,
+                    positiveMomentum: false, highADX: false, bollingerSqueeze: false, highVolume: false,
+                  });
+                }}
+                style={{
+                  padding: '6px 14px',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <Icon name="clear_all" size={14} /> Clear Filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Progress Bar */}
+      {isLoading && progress > 0 && (
+        <div className="showcase-progress">
+          <div className="showcase-progress-bar">
+            <div 
+              className="showcase-progress-fill"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="showcase-progress-info">
+            <span className="showcase-progress-message">{progressMessage}</span>
+            <span className="showcase-progress-percent">{progress}%</span>
+          </div>
+        </div>
+      )}
 
       {/* Summary Stats */}
       {summary && !isLoading && (
@@ -360,14 +675,14 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
       )}
 
       {/* Opportunities Grid */}
-      {!isLoading && opportunities.length > 0 && (
+      {!isLoading && filteredOpportunities.length > 0 && (
         <>
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
           gap: '16px'
         }}>
-          {opportunities.slice(0, visibleCount).map((opp, idx) => {
+          {filteredOpportunities.slice(0, visibleCount).map((opp, idx) => {
             const quality = getQualityBadge(opp.qualityScore || opp.confidence);
             
             return (
@@ -848,7 +1163,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
         </div>
         
         {/* Load More Button */}
-        {visibleCount < opportunities.length && (
+        {visibleCount < filteredOpportunities.length && (
           <div style={{ textAlign: 'center', marginTop: '24px' }}>
             <button
               onClick={() => setVisibleCount(prev => prev + CARDS_PER_PAGE)}
@@ -865,7 +1180,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
               }}
               className="load-more-btn"
             >
-              Load More ({opportunities.length - visibleCount} remaining)
+              Load More ({filteredOpportunities.length - visibleCount} remaining)
             </button>
           </div>
         )}
@@ -873,16 +1188,18 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
       )}
 
       {/* Empty State */}
-      {!isLoading && opportunities.length === 0 && !error && (
+      {!isLoading && filteredOpportunities.length === 0 && !error && (
         <div style={{
           padding: '60px 20px',
           textAlign: 'center',
           color: 'var(--text-muted)'
         }}>
           <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}><Icon name="search" size={48} /></div>
-          <p style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>No opportunities found</p>
+          <p style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>
+            {opportunities.length > 0 ? 'No results match your filters' : 'No opportunities found'}
+          </p>
           <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>
-            Try scanning again or change the filter type
+            {opportunities.length > 0 ? 'Try adjusting your search or filter criteria' : 'Try scanning again or change the stock universe'}
           </p>
         </div>
       )}
