@@ -615,7 +615,7 @@ app.get('/api/ai/stock-showcase', async (req, res) => {
       filtered = mergedResults.filter(r => r.isPremium);
     }
 
-    const totalScanned = (opportunitiesResult.scannedCount || 0) + (premiumResult.totalScanned || 0);
+    const totalScanned = Math.max(opportunitiesResult.scannedCount || 0, premiumResult.totalScanned || 0);
     const limitNum = parseInt(limit);
     const topResults = filtered.slice(0, limitNum);
 

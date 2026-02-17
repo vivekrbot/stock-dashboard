@@ -863,8 +863,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                 fontSize: '0.9rem',
                 transition: 'all 0.2s'
               }}
-              onMouseOver={(e) => e.target.style.background = 'var(--accent-primary)'}
-              onMouseOut={(e) => e.target.style.background = 'var(--bg-secondary)'}
+              className="load-more-btn"
             >
               Load More ({opportunities.length - visibleCount} remaining)
             </button>
