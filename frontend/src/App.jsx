@@ -17,21 +17,22 @@ const CARDS_PER_PAGE = 10;
 const SECTORS = ['IT', 'Banking', 'Auto', 'Pharma', 'Energy', 'FMCG', 'Metals', 'Telecom', 'Cement', 'Finance'];
 const DEFAULT_WATCHLIST = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
 
-const TABS = [
-  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', description: 'Screener & Watchlist' },
-  { id: 'signals', icon: 'star', label: 'Premium Signals', description: 'AI High-Quality Picks' },
-  { id: 'intelligence', icon: 'psychology', label: 'Market Intel', description: 'Sentiment & Analysis' },
-  { id: 'risk', icon: 'calculate', label: 'Risk Calculator', description: 'Position Sizing' }
-];
-
 function App() {
   const toast = useToast();
   
   // Core state
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [visibleCards, setVisibleCards] = useState(CARDS_PER_PAGE);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // View state - control which section is expanded/visible
+  const [expandedSections, setExpandedSections] = useState({
+    signals: false,
+    intelligence: false,
+    risk: false,
+    watchlist: false,
+    filters: false
+  });
   
   // Watchlist state
   const [watchlist, setWatchlist] = useState(() => {
@@ -43,6 +44,11 @@ function App() {
     return DEFAULT_WATCHLIST;
   });
   
+  // AI Search state - the primary interface
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  
   // Form state
   const [newSymbol, setNewSymbol] = useState('');
   
@@ -53,15 +59,23 @@ function App() {
   // Risk Calculator prefill state
   const [riskCalcPrefill, setRiskCalcPrefill] = useState(null);
   
+  // Indicator filters - all visible on screen
+  const [indicatorFilters, setIndicatorFilters] = useState({
+    minRSI: 30,
+    maxRSI: 70,
+    minVolume: 0,
+    priceAboveSMA: false,
+    bullishMACD: false,
+    positiveMomentum: false
+  });
+  
   // Screener state
   const [scanning, setScanning] = useState(false);
   const [scanResults, setScanResults] = useState(null);
   const [strategy, setStrategy] = useState('balanced');
   const [strategyDetails, setStrategyDetails] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [showStrategyDetails, setShowStrategyDetails] = useState(false);
   
-  // Filter state
+  // Filter state - simplified for AI search
   const [filters, setFilters] = useState({
     capSize: 'all',
     sector: 'all',
@@ -109,9 +123,55 @@ function App() {
       action: stockData.action,
       confidence: stockData.confidence
     });
-    setActiveTab('risk');
+    setExpandedSections(prev => ({ ...prev, risk: true }));
     toast.success(`${stockData.symbol} added to Risk Calculator`, 'Trade Setup');
   }, [toast]);
+
+  // AI Search Handler - Primary interface for finding stocks
+  const handleAISearch = async (e) => {
+    if (e) e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      toast.warning('Please enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchResults([]);
+    
+    try {
+      // Search across multiple endpoints based on query
+      const response = await fetch(`${API_BASE}/ai/opportunities?limit=20`);
+      if (!response.ok) throw new Error('Search failed');
+      
+      const data = await response.json();
+      const results = data.opportunities || [];
+      
+      // Filter results based on search query (symbol or company name)
+      const queryLower = query.toLowerCase();
+      const filtered = results.filter(opp => 
+        opp.symbol.toLowerCase().includes(queryLower) ||
+        (opp.companyName && opp.companyName.toLowerCase().includes(queryLower))
+      );
+      
+      setSearchResults(filtered);
+      
+      if (filtered.length === 0) {
+        toast.warning(`No results found for "${query}"`);
+      } else {
+        toast.success(`Found ${filtered.length} matching stocks`, 'Search Complete');
+      }
+    } catch (error) {
+      toast.error(error.message, 'Search Failed');
+    }
+    
+    setIsSearching(false);
+  };
+
+  // Toggle section visibility
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   // Fetch strategy details
   useEffect(() => {
@@ -222,279 +282,318 @@ function App() {
 
   return (
     <div className="container">
-      {/* Header */}
-      <header className="header">
-        <h1><Icon name="analytics" size={28} /> Advanced Stock Screener</h1>
-        <p>Strategy-Based Analysis • Pattern Recognition • Sector Intelligence</p>
+      {/* Minimal Header */}
+      <header className="header-minimal">
+        <div className="header-content">
+          <h1><Icon name="candlestick_chart" size={32} /> AI Stock Dashboard</h1>
+          <p className="header-subtitle">Intelligent Market Analysis & Trading Opportunities</p>
+        </div>
+        <MarketStatus />
       </header>
 
-      {/* Market Status */}
-      <MarketStatus />
-
-      {/* Navigation Tabs */}
-      <nav className="nav-tabs">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
-          >
-            <div><Icon name={tab.icon} size={18} /> {tab.label}</div>
-            <div className="nav-tab-desc">{tab.description}</div>
-          </button>
-        ))}
-      </nav>
-
-      {/* Tab Content */}
-      {activeTab === 'signals' && (
-        <PremiumSignals 
-          onAddToWatchlist={handleAddToWatchlist}
-          onAddToRiskCalc={handleAddToRiskCalc}
-          cachedData={dataCache.premiumSignals}
-          onUpdateCache={(updates) => updateCache('premiumSignals', updates)}
-        />
-      )}
-
-      {activeTab === 'intelligence' && (
-        <MarketIntelligence 
-          cachedData={dataCache.marketIntelligence}
-          onUpdateCache={(updates) => updateCache('marketIntelligence', updates)}
-        />
-      )}
-
-      {activeTab === 'risk' && (
-        <RiskCalculator 
-          prefillData={riskCalcPrefill}
-          onClearPrefill={() => setRiskCalcPrefill(null)}
-        />
-      )}
-
-      {activeTab === 'dashboard' && (
-        <>
-          {/* AI Trading Opportunities */}
-          <TradingOpportunities 
-            watchlist={watchlist}
-            onAddToWatchlist={handleAddToWatchlist}
-            onAddToRiskCalc={handleAddToRiskCalc}
-            cachedData={dataCache.opportunities}
-            onUpdateCache={(updates) => updateCache('opportunities', updates)}
-          />
-
-          {/* Watchlist Manager */}
-          <WatchlistManager 
-            currentStocks={watchlist}
-            onWatchlistChange={handleWatchlistChange}
-            onStocksChange={handleStocksChange}
-          />
-
-          {/* Add Stock Form */}
-          <form onSubmit={handleAddStock} className="add-stock-form">
+      {/* AI Search - Primary Interface */}
+      <section className="ai-search-section">
+        <form onSubmit={handleAISearch} className="ai-search-form">
+          <div className="search-input-wrapper">
+            <Icon name="search" size={24} />
             <input
               type="text"
-              value={newSymbol}
-              onChange={(e) => setNewSymbol(e.target.value)}
-              placeholder="Enter stock symbol (e.g., WIPRO)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search stocks by symbol or company name (e.g., RELIANCE, TCS)..."
+              className="ai-search-input"
             />
-            <button type="submit">Add Stock</button>
-          </form>
-
-          {/* Strategy Selector */}
-          <section className="card" style={{ marginBottom: '20px' }}>
-            <div className="strategy-row">
-              <label className="strategy-label">Trading Strategy</label>
-              <select 
-                value={strategy}
-                onChange={(e) => setStrategy(e.target.value)}
-                className="strategy-select"
+            {searchQuery && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}
+                className="clear-search-btn"
               >
-                <option value="short-term">Short-Term (1-7 days) - 80% Technical</option>
-                <option value="balanced">Balanced (1-4 weeks) - 60% Technical</option>
-                <option value="long-term">Long-Term (3-12 months) - 40% Technical</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => setShowStrategyDetails(!showStrategyDetails)}
-                className="btn-secondary"
-              >
-                {showStrategyDetails ? 'Hide Details' : 'View Details'}
+                <Icon name="close" size={20} />
               </button>
-            </div>
-
-            {showStrategyDetails && strategyDetails && (
-              <div className="strategy-details">
-                <h3>{strategyDetails.name}</h3>
-                <p>{strategyDetails.description}</p>
-                <div className="strategy-grid">
-                  <div className="strategy-card">
-                    <span className="label">Weights</span>
-                    <div>Technical: <strong className="text-green">{(strategyDetails.weights.technical * 100).toFixed(0)}%</strong></div>
-                    <div>Fundamental: <strong className="text-blue">{(strategyDetails.weights.fundamental * 100).toFixed(0)}%</strong></div>
-                  </div>
-                  <div className="strategy-card">
-                    <span className="label">Min Confidence</span>
-                    <strong className="text-orange text-xl">{strategyDetails.minConfidence}+</strong>
-                  </div>
-                </div>
-              </div>
             )}
-          </section>
+          </div>
+          <button type="submit" disabled={isSearching} className="btn-search">
+            {isSearching ? (
+              <>
+                <span className="spinner-small"></span> Searching...
+              </>
+            ) : (
+              <>
+                <Icon name="psychology" size={20} /> AI Search
+              </>
+            )}
+          </button>
+        </form>
 
-          {/* Advanced Filters */}
-          <section style={{ marginBottom: '20px' }}>
+        {/* Indicator Filters - Always Visible */}
+        <div className="indicator-filters">
+          <div className="filters-header">
+            <h3><Icon name="tune" size={20} /> Technical Indicators Filter</h3>
             <button 
               type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="btn-filter-toggle"
+              onClick={() => toggleSection('filters')}
+              className="toggle-btn"
             >
-              <span>{showFilters ? '▾' : '▸'}</span>
-              {showFilters ? 'Hide Filters' : 'Advanced Filters'}
-            </button>
-
-            {showFilters && (
-              <div className="filters-panel">
-                <div className="filters-grid">
-                  <div className="filter-group">
-                    <label>Market Cap</label>
-                    <select 
-                      value={filters.capSize}
-                      onChange={(e) => updateFilter('capSize', e.target.value)}
-                    >
-                      <option value="all">All Caps</option>
-                      <option value="largeCap">Large Cap</option>
-                      <option value="midCap">Mid Cap</option>
-                      <option value="smallCap">Small Cap</option>
-                    </select>
-                  </div>
-
-                  <div className="filter-group">
-                    <label>Sector</label>
-                    <select 
-                      value={filters.sector}
-                      onChange={(e) => updateFilter('sector', e.target.value)}
-                    >
-                      <option value="all">All Sectors</option>
-                      {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="filter-group">
-                    <label>Min Price (₹)</label>
-                    <input
-                      type="number"
-                      value={filters.minPrice}
-                      onChange={(e) => updateFilter('minPrice', e.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div className="filter-group">
-                    <label>Max Price (₹)</label>
-                    <input
-                      type="number"
-                      value={filters.maxPrice}
-                      onChange={(e) => updateFilter('maxPrice', e.target.value)}
-                      placeholder="No limit"
-                    />
-                  </div>
-                </div>
-
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={filters.sectorLeadersOnly}
-                    onChange={(e) => updateFilter('sectorLeadersOnly', e.target.checked)}
-                  />
-                  <span>Sector Leaders Only</span>
-                </label>
-              </div>
-            )}
-          </section>
-
-          {/* Action Buttons */}
-          <div className="action-buttons">
-            <button 
-              onClick={handleFindOpportunities}
-              disabled={scanning}
-              className="btn-primary btn-large"
-            >
-              {scanning ? 'Scanning...' : 'Find Opportunities'}
-            </button>
-            <button onClick={handleRefresh} className="btn-secondary">
-              Refresh
-            </button>
-            <button onClick={handleReset} className="btn-danger">
-              Reset
+              {expandedSections.filters ? 'Hide' : 'Show'}
             </button>
           </div>
-
-          {/* Scan Results Summary */}
-          {scanResults?.strategy && (
-            <div className="scan-results">
-              <div>
-                <span className="label">Scan Results</span>
-                <div className="scan-count">
-                  Found <span className="text-green">{scanResults.totalFound}</span> opportunities
-                </div>
-              </div>
-              <div className="scan-meta">
-                <div>Scanned {scanResults.totalScanned} stocks</div>
-                <div>Strategy: {scanResults.strategy.name}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Scanning Indicator */}
-          {scanning && (
-            <div className="scanning-indicator">
-              <div className="spinner"></div>
-              <div className="scanning-title">Scanning with {strategyDetails?.name || 'Balanced'} strategy</div>
-              <div className="scanning-subtitle">This may take 30-60 seconds</div>
-            </div>
-          )}
-
-          {/* Stock Cards */}
-          {watchlist.length > 0 ? (
-            <>
-              <div className="watchlist-grid">
-                {watchlist.slice(0, visibleCards).map((symbol) => (
-                  <StockCard
-                    key={`${symbol}-${refreshKey}`}
-                    symbol={symbol}
-                    onAnalyze={setSelectedStock}
-                    onRemove={handleRemoveStock}
-                    onChart={setChartStock}
+          
+          {expandedSections.filters && (
+            <div className="filters-grid-inline">
+              <div className="filter-item">
+                <label>
+                  <Icon name="show_chart" size={16} /> RSI Range
+                </label>
+                <div className="filter-range">
+                  <input
+                    type="number"
+                    value={indicatorFilters.minRSI}
+                    onChange={(e) => setIndicatorFilters({...indicatorFilters, minRSI: e.target.value})}
+                    placeholder="Min"
                   />
-                ))}
-              </div>
-              
-              {visibleCards < watchlist.length && (
-                <div className="load-more-container">
-                  <button
-                    onClick={() => setVisibleCards(prev => prev + CARDS_PER_PAGE)}
-                    className="load-more-btn"
-                  >
-                    Load More ({watchlist.length - visibleCards} remaining)
-                  </button>
+                  <span>to</span>
+                  <input
+                    type="number"
+                    value={indicatorFilters.maxRSI}
+                    onChange={(e) => setIndicatorFilters({...indicatorFilters, maxRSI: e.target.value})}
+                    placeholder="Max"
+                  />
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon"><Icon name="trending_up" size={48} /></div>
-              <div className="empty-title">Your watchlist is empty</div>
-              <div className="empty-subtitle">Select a strategy and click "Find Opportunities"</div>
+              </div>
+
+              <div className="filter-item-checks">
+                <label className="checkbox-filter">
+                  <input
+                    type="checkbox"
+                    checked={indicatorFilters.priceAboveSMA}
+                    onChange={(e) => setIndicatorFilters({...indicatorFilters, priceAboveSMA: e.target.checked})}
+                  />
+                  <Icon name="trending_up" size={16} /> Price Above SMA
+                </label>
+                <label className="checkbox-filter">
+                  <input
+                    type="checkbox"
+                    checked={indicatorFilters.bullishMACD}
+                    onChange={(e) => setIndicatorFilters({...indicatorFilters, bullishMACD: e.target.checked})}
+                  />
+                  <Icon name="analytics" size={16} /> Bullish MACD
+                </label>
+                <label className="checkbox-filter">
+                  <input
+                    type="checkbox"
+                    checked={indicatorFilters.positiveMomentum}
+                    onChange={(e) => setIndicatorFilters({...indicatorFilters, positiveMomentum: e.target.checked})}
+                  />
+                  <Icon name="rocket_launch" size={16} /> Positive Momentum
+                </label>
+              </div>
             </div>
           )}
+        </div>
 
-          {/* Modals */}
-          {selectedStock && (
-            <AnalysisModal symbol={selectedStock} onClose={() => setSelectedStock(null)} />
-          )}
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <div className="search-results">
+            <h3>Search Results ({searchResults.length})</h3>
+            <div className="results-grid">
+              {searchResults.slice(0, visibleCards).map((result) => (
+                <div key={result.symbol} className="result-card">
+                  <div className="result-header">
+                    <div>
+                      <div className="result-symbol">{result.symbol}</div>
+                      <div className="result-action">{result.action}</div>
+                    </div>
+                    <div className="result-confidence">
+                      <div className="confidence-score">{result.confidence}%</div>
+                      <div className="confidence-label">Confidence</div>
+                    </div>
+                  </div>
+                  <div className="result-details">
+                    <div className="detail-item">
+                      <span>Entry:</span> <strong>₹{result.entry?.toFixed(2)}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Target:</span> <strong className="text-green">₹{result.target?.toFixed(2)}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Stop Loss:</span> <strong className="text-red">₹{result.stopLoss?.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  <div className="result-actions">
+                    <button onClick={() => handleAddToWatchlist(result.symbol)} className="btn-small btn-primary">
+                      <Icon name="add" size={16} /> Watchlist
+                    </button>
+                    <button onClick={() => handleAddToRiskCalc(result)} className="btn-small btn-secondary">
+                      <Icon name="calculate" size={16} /> Calculate
+                    </button>
+                    <button onClick={() => setSelectedStock(result.symbol)} className="btn-small btn-outline">
+                      <Icon name="analytics" size={16} /> Analyze
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {visibleCards < searchResults.length && (
+              <button
+                onClick={() => setVisibleCards(prev => prev + CARDS_PER_PAGE)}
+                className="load-more-btn"
+              >
+                Load More ({searchResults.length - visibleCards} remaining)
+              </button>
+            )}
+          </div>
+        )}
+      </section>
 
-          {chartStock && (
-            <StockChart symbol={chartStock} onClose={() => setChartStock(null)} />
-          )}
-        </>
+      {/* AI Trading Opportunities - Collapsible */}
+      <section className="collapsible-section">
+        <button 
+          onClick={() => toggleSection('signals')}
+          className="section-toggle"
+        >
+          <div className="section-toggle-title">
+            <Icon name="star" size={24} />
+            <span>Premium AI Signals</span>
+            <span className="section-badge">High Quality Picks</span>
+          </div>
+          <Icon name={expandedSections.signals ? 'expand_less' : 'expand_more'} size={24} />
+        </button>
+        {expandedSections.signals && (
+          <div className="section-content">
+            <PremiumSignals 
+              onAddToWatchlist={handleAddToWatchlist}
+              onAddToRiskCalc={handleAddToRiskCalc}
+              cachedData={dataCache.premiumSignals}
+              onUpdateCache={(updates) => updateCache('premiumSignals', updates)}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* Market Intelligence - Collapsible */}
+      <section className="collapsible-section">
+        <button 
+          onClick={() => toggleSection('intelligence')}
+          className="section-toggle"
+        >
+          <div className="section-toggle-title">
+            <Icon name="psychology" size={24} />
+            <span>Market Intelligence</span>
+            <span className="section-badge">Sentiment & Analysis</span>
+          </div>
+          <Icon name={expandedSections.intelligence ? 'expand_less' : 'expand_more'} size={24} />
+        </button>
+        {expandedSections.intelligence && (
+          <div className="section-content">
+            <MarketIntelligence 
+              cachedData={dataCache.marketIntelligence}
+              onUpdateCache={(updates) => updateCache('marketIntelligence', updates)}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* Risk Calculator - Collapsible */}
+      <section className="collapsible-section">
+        <button 
+          onClick={() => toggleSection('risk')}
+          className="section-toggle"
+        >
+          <div className="section-toggle-title">
+            <Icon name="calculate" size={24} />
+            <span>Risk Calculator</span>
+            <span className="section-badge">Position Sizing</span>
+          </div>
+          <Icon name={expandedSections.risk ? 'expand_less' : 'expand_more'} size={24} />
+        </button>
+        {expandedSections.risk && (
+          <div className="section-content">
+            <RiskCalculator 
+              prefillData={riskCalcPrefill}
+              onClearPrefill={() => setRiskCalcPrefill(null)}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* AI Trading Opportunities Dashboard */}
+      <TradingOpportunities 
+        watchlist={watchlist}
+        onAddToWatchlist={handleAddToWatchlist}
+        onAddToRiskCalc={handleAddToRiskCalc}
+        cachedData={dataCache.opportunities}
+        onUpdateCache={(updates) => updateCache('opportunities', updates)}
+      />
+
+      {/* Watchlist Manager - Collapsible */}
+      <section className="collapsible-section">
+        <button 
+          onClick={() => toggleSection('watchlist')}
+          className="section-toggle"
+        >
+          <div className="section-toggle-title">
+            <Icon name="bookmark" size={24} />
+            <span>My Watchlist</span>
+            <span className="section-badge">{watchlist.length} stocks</span>
+          </div>
+          <Icon name={expandedSections.watchlist ? 'expand_less' : 'expand_more'} size={24} />
+        </button>
+        {expandedSections.watchlist && (
+          <div className="section-content">
+            <WatchlistManager 
+              currentStocks={watchlist}
+              onWatchlistChange={handleWatchlistChange}
+              onStocksChange={handleStocksChange}
+            />
+
+            {/* Stock Cards */}
+            {watchlist.length > 0 ? (
+              <>
+                <div className="watchlist-grid">
+                  {watchlist.slice(0, visibleCards).map((symbol) => (
+                    <StockCard
+                      key={`${symbol}-${refreshKey}`}
+                      symbol={symbol}
+                      onAnalyze={setSelectedStock}
+                      onRemove={handleRemoveStock}
+                      onChart={setChartStock}
+                    />
+                  ))}
+                </div>
+                
+                {visibleCards < watchlist.length && (
+                  <div className="load-more-container">
+                    <button
+                      onClick={() => setVisibleCards(prev => prev + CARDS_PER_PAGE)}
+                      className="load-more-btn"
+                    >
+                      Load More ({watchlist.length - visibleCards} remaining)
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon"><Icon name="trending_up" size={48} /></div>
+                <div className="empty-title">Your watchlist is empty</div>
+                <div className="empty-subtitle">Use AI search to find stocks</div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Modals */}
+      {selectedStock && (
+        <AnalysisModal symbol={selectedStock} onClose={() => setSelectedStock(null)} />
+      )}
+
+      {chartStock && (
+        <StockChart symbol={chartStock} onClose={() => setChartStock(null)} />
       )}
     </div>
   );
