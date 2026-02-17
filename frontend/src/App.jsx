@@ -5,9 +5,8 @@ import SplashScreen from './components/SplashScreen';
 import MarketStatus from './components/MarketStatus';
 import StockChart from './components/StockChart';
 import WatchlistManager from './components/WatchlistManager';
-import TradingOpportunities from './components/TradingOpportunities';
+import AIStockShowcase from './components/AIStockShowcase';
 import MarketIntelligence from './components/MarketIntelligence';
-import PremiumSignals from './components/PremiumSignals';
 import RiskCalculator from './components/RiskCalculator';
 import { useToast } from './components/Toast';
 import Icon from './components/Icon';
@@ -27,7 +26,6 @@ function App() {
   
   // View state - control which section is expanded/visible
   const [expandedSections, setExpandedSections] = useState({
-    signals: false,
     intelligence: false,
     risk: false,
     watchlist: false,
@@ -89,8 +87,7 @@ function App() {
   // Data is cached and only refreshed on explicit action (scan/refresh button)
   // ==========================================
   const [dataCache, setDataCache] = useState({
-    premiumSignals: { data: null, timestamp: null, loading: false },
-    opportunities: { data: null, timestamp: null, loading: false, scanType: 'all' },
+    stockShowcase: { data: null, timestamp: null, loading: false, scanType: 'all' },
     marketIntelligence: { data: null, timestamp: null, loading: false }
   });
 
@@ -449,30 +446,14 @@ function App() {
         )}
       </section>
 
-      {/* AI Trading Opportunities - Collapsible */}
-      <section className="collapsible-section">
-        <button 
-          onClick={() => toggleSection('signals')}
-          className="section-toggle"
-        >
-          <div className="section-toggle-title">
-            <Icon name="star" size={24} />
-            <span>Premium AI Signals</span>
-            <span className="section-badge">High Quality Picks</span>
-          </div>
-          <Icon name={expandedSections.signals ? 'expand_less' : 'expand_more'} size={24} />
-        </button>
-        {expandedSections.signals && (
-          <div className="section-content">
-            <PremiumSignals 
-              onAddToWatchlist={handleAddToWatchlist}
-              onAddToRiskCalc={handleAddToRiskCalc}
-              cachedData={dataCache.premiumSignals}
-              onUpdateCache={(updates) => updateCache('premiumSignals', updates)}
-            />
-          </div>
-        )}
-      </section>
+      {/* AI Stock Showcase - Unified Trading Opportunities + Premium Signals */}
+      <AIStockShowcase 
+        watchlist={watchlist}
+        onAddToWatchlist={handleAddToWatchlist}
+        onAddToRiskCalc={handleAddToRiskCalc}
+        cachedData={dataCache.stockShowcase}
+        onUpdateCache={(updates) => updateCache('stockShowcase', updates)}
+      />
 
       {/* Market Intelligence - Collapsible */}
       <section className="collapsible-section">
@@ -519,15 +500,6 @@ function App() {
           </div>
         )}
       </section>
-
-      {/* AI Trading Opportunities Dashboard */}
-      <TradingOpportunities 
-        watchlist={watchlist}
-        onAddToWatchlist={handleAddToWatchlist}
-        onAddToRiskCalc={handleAddToRiskCalc}
-        cachedData={dataCache.opportunities}
-        onUpdateCache={(updates) => updateCache('opportunities', updates)}
-      />
 
       {/* Watchlist Manager - Collapsible */}
       <section className="collapsible-section">

@@ -226,6 +226,7 @@ app.get('/', (req, res) => {
         'POST /api/ai/analyze-watchlist',
         'GET /api/ai/patterns/:symbol',
         'GET /api/ai/premium-signals',
+        'GET /api/ai/stock-showcase',
         'GET /api/ai/detailed/:symbol',
         'GET /api/ai/technicals/:symbol'
       ],
@@ -559,6 +560,76 @@ app.get('/api/ai/premium-signals', async (req, res) => {
     res.json(signals);
   } catch (error) {
     console.error('Premium signals error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Merged AI Stock Showcase - combines opportunities + premium signals from all NSE stocks
+app.get('/api/ai/stock-showcase', async (req, res) => {
+  try {
+    const { filter = 'all', limit = 20 } = req.query;
+    console.log('🚀 Running unified AI Stock Showcase scan across all NSE stocks...');
+
+    // Run both scans in parallel for comprehensive coverage
+    const [opportunitiesResult, premiumResult] = await Promise.all([
+      aiPredictionService ? aiPredictionService.scanForOpportunities() : { opportunities: [] },
+      enhancedPredictionEngine ? enhancedPredictionEngine.generatePremiumSignals() : { signals: [] }
+    ]);
+
+    // Merge and deduplicate - premium signals take priority (higher quality)
+    const premiumSymbols = new Set((premiumResult.signals || []).map(s => s.symbol));
+    const mergedResults = [];
+
+    // Add premium signals first (tagged as premium)
+    for (const signal of (premiumResult.signals || [])) {
+      mergedResults.push({
+        ...signal,
+        isPremium: true,
+        qualityScore: signal.qualityScore || 80,
+        source: 'premium'
+      });
+    }
+
+    // Add non-duplicate opportunities (tagged as standard)
+    for (const opp of (opportunitiesResult.opportunities || [])) {
+      if (!premiumSymbols.has(opp.symbol)) {
+        mergedResults.push({
+          ...opp,
+          isPremium: false,
+          qualityScore: opp.confidence || 60,
+          source: 'opportunity'
+        });
+      }
+    }
+
+    // Sort by quality score
+    mergedResults.sort((a, b) => b.qualityScore - a.qualityScore);
+
+    // Apply filter
+    let filtered = mergedResults;
+    if (filter === 'bullish') {
+      filtered = mergedResults.filter(r => r.action === 'BUY' || r.type === 'bullish');
+    } else if (filter === 'bearish') {
+      filtered = mergedResults.filter(r => r.action === 'SELL' || r.type === 'bearish');
+    } else if (filter === 'premium') {
+      filtered = mergedResults.filter(r => r.isPremium);
+    }
+
+    const totalScanned = (opportunitiesResult.scannedCount || 0) + (premiumResult.totalScanned || 0);
+    const limitNum = parseInt(limit);
+    const topResults = filtered.slice(0, limitNum);
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      scannedCount: totalScanned,
+      totalFound: filtered.length,
+      opportunitiesFound: topResults.length,
+      premiumCount: topResults.filter(r => r.isPremium).length,
+      opportunities: topResults,
+      summary: premiumResult.summary || null
+    });
+  } catch (error) {
+    console.error('Stock showcase error:', error);
     res.status(500).json({ error: error.message });
   }
 });
