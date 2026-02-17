@@ -6,27 +6,29 @@
 const patternAnalysisService = require('./patternAnalysisService');
 const historicalService = require('./historicalService');
 const stockService = require('./stockService');
+const nseFetcherService = require('./nseFetcherService');
 
 class AIPredictionService {
   constructor() {
-    // Popular NSE stocks to scan
-    this.watchlist = [
-      'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
-      'HINDUNILVR', 'SBIN', 'BHARTIARTL', 'KOTAKBANK', 'ITC',
-      'LT', 'AXISBANK', 'ASIANPAINT', 'MARUTI', 'SUNPHARMA',
-      'TITAN', 'BAJFINANCE', 'NESTLEIND', 'WIPRO', 'ULTRACEMCO',
-      'TATAMOTORS', 'TATASTEEL', 'POWERGRID', 'NTPC', 'ONGC',
-      'M&M', 'ADANIENT', 'ADANIPORTS', 'COALINDIA', 'JSWSTEEL',
-      'HCLTECH', 'TECHM', 'DRREDDY', 'CIPLA', 'APOLLOHOSP',
-      'BAJAJFINSV', 'EICHERMOT', 'GRASIM', 'INDUSINDBK', 'BRITANNIA'
-    ];
+    // Will be populated dynamically from NSE fetcher service (all NSE stocks)
+    this.watchlist = null;
+  }
+
+  /**
+   * Get all NSE stocks dynamically from nseFetcherService
+   */
+  async getFullStockList() {
+    if (this.watchlist) return this.watchlist;
+    const stocks = await nseFetcherService.getAllNSEStocks();
+    this.watchlist = [...new Set([...stocks.largeCap, ...stocks.midCap, ...stocks.smallCap])];
+    return this.watchlist;
   }
 
   /**
    * Scan all stocks and return top trading opportunities
    */
   async scanForOpportunities(customWatchlist = null) {
-    const stocksToScan = customWatchlist || this.watchlist;
+    const stocksToScan = customWatchlist || await this.getFullStockList();
     const opportunities = [];
     const errors = [];
 

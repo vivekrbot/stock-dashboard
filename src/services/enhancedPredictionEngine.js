@@ -8,17 +8,12 @@ const advancedTechnicalService = require('./advancedTechnicalService');
 const patternAnalysisService = require('./patternAnalysisService');
 const historicalService = require('./historicalService');
 const stockService = require('./stockService');
+const nseFetcherService = require('./nseFetcherService');
 
 class EnhancedPredictionEngine {
   constructor() {
-    // Watchlist of liquid, well-traded stocks
-    this.premiumWatchlist = [
-      'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
-      'HINDUNILVR', 'SBIN', 'BHARTIARTL', 'KOTAKBANK', 'ITC',
-      'LT', 'AXISBANK', 'ASIANPAINT', 'MARUTI', 'SUNPHARMA',
-      'TITAN', 'BAJFINANCE', 'WIPRO', 'TATAMOTORS', 'TATASTEEL',
-      'HCLTECH', 'TECHM', 'DRREDDY', 'CIPLA', 'JSWSTEEL'
-    ];
+    // Will be populated dynamically from NSE fetcher service (all NSE stocks)
+    this.premiumWatchlist = null;
 
     // Minimum criteria for trade signals
     this.qualityThresholds = {
@@ -31,6 +26,16 @@ class EnhancedPredictionEngine {
   }
 
   /**
+   * Get all NSE stocks dynamically from nseFetcherService
+   */
+  async getFullStockList() {
+    if (this.premiumWatchlist) return this.premiumWatchlist;
+    const stocks = await nseFetcherService.getAllNSEStocks();
+    this.premiumWatchlist = [...new Set([...stocks.largeCap, ...stocks.midCap, ...stocks.smallCap])];
+    return this.premiumWatchlist;
+  }
+
+  /**
    * Generate HIGH QUALITY trade signals only
    * These are the signals you can trust
    */
@@ -39,9 +44,10 @@ class EnhancedPredictionEngine {
     const skipped = [];
     const errors = [];
 
-    console.log('🎯 Generating PREMIUM signals with strict quality filters...');
+    const stockList = await this.getFullStockList();
+    console.log(`🎯 Generating PREMIUM signals with strict quality filters across ${stockList.length} stocks...`);
 
-    for (const symbol of this.premiumWatchlist) {
+    for (const symbol of stockList) {
       try {
         const signal = await this.analyzeWithFullStack(symbol);
         
@@ -69,7 +75,7 @@ class EnhancedPredictionEngine {
 
     return {
       timestamp: new Date().toISOString(),
-      totalScanned: this.premiumWatchlist.length,
+      totalScanned: stockList.length,
       qualitySignals: signals.length,
       signals: signals.slice(0, 10), // Top 10 only
       skipped: skipped.slice(0, 5),
