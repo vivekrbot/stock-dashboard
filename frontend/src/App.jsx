@@ -148,9 +148,10 @@ function App() {
       const results = data.opportunities || [];
       
       // Filter results based on search query (symbol or company name)
+      const queryLower = query.toLowerCase();
       const filtered = results.filter(opp => 
-        opp.symbol.toLowerCase().includes(query.toLowerCase()) ||
-        (opp.companyName && opp.companyName.toLowerCase().includes(query.toLowerCase()))
+        opp.symbol.toLowerCase().includes(queryLower) ||
+        (opp.companyName && opp.companyName.toLowerCase().includes(queryLower))
       );
       
       setSearchResults(filtered);
