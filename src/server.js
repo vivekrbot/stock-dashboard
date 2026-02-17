@@ -607,7 +607,7 @@ app.get('/api/ai/stock-showcase', async (req, res) => {
 
     // Apply universe filter (stock category)
     let universeFiltered = mergedResults;
-    if (universe !== 'all' && screenerService) {
+    if (universe !== 'all' && screenerService && typeof screenerService.determineCapSize === 'function') {
       const capSizeMap = {
         'nifty50': 'Large Cap',
         'largeCap': 'Large Cap',

@@ -207,7 +207,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
       if (!isNaN(minRSI)) {
         filtered = filtered.filter(opp => {
           const rsi = opp.rsi || opp.technicals?.rsi;
-          return rsi === undefined || rsi >= minRSI;
+          return rsi !== undefined && rsi >= minRSI;
         });
       }
     }
@@ -216,7 +216,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
       if (!isNaN(maxRSI)) {
         filtered = filtered.filter(opp => {
           const rsi = opp.rsi || opp.technicals?.rsi;
-          return rsi === undefined || rsi <= maxRSI;
+          return rsi !== undefined && rsi <= maxRSI;
         });
       }
     }
@@ -224,16 +224,14 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
     // Boolean indicator filters
     if (indicatorFilters.priceAboveSMA) {
       filtered = filtered.filter(opp => {
-        if (opp.sma20 && opp.currentPrice) return opp.currentPrice > opp.sma20;
-        return true;
+        return opp.sma20 && opp.currentPrice && opp.currentPrice > opp.sma20;
       });
     }
     if (indicatorFilters.bullishMACD) {
       filtered = filtered.filter(opp => {
         const macd = opp.technicals?.macd;
         if (macd) return macd.signal === 'bullish' || macd.histogram > 0;
-        if (opp.action === 'BUY') return true;
-        return true;
+        return opp.action === 'BUY' && opp.type === 'bullish';
       });
     }
     if (indicatorFilters.positiveMomentum) {
@@ -244,12 +242,12 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
     if (indicatorFilters.highADX) {
       filtered = filtered.filter(opp => {
         const adx = opp.technicals?.adx?.adx;
-        return adx === undefined || adx >= 25;
+        return adx !== undefined && adx >= 25;
       });
     }
     if (indicatorFilters.highVolume) {
       filtered = filtered.filter(opp => {
-        return opp.volumeRatio === undefined || opp.volumeRatio >= 1.2;
+        return opp.volumeRatio !== undefined && opp.volumeRatio >= 1.2;
       });
     }
     
