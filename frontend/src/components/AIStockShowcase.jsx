@@ -197,6 +197,22 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
   const hasData = opportunities.length > 0 || scanStats;
   const [hasScanned, setHasScanned] = useState(hasData);
 
+  // Sync hasScanned when parent data arrives (e.g. from cached props)
+  useEffect(() => {
+    if (hasData) setHasScanned(true);
+  }, [hasData]);
+
+  // Restore cached results for a given scanType + universe, returns true if cache hit
+  const restoreCachedResults = useCallback((type, universe) => {
+    const key = getCacheKey(type, universe);
+    const cached = tempCacheRef.current[key];
+    if (cached) {
+      onUpdateCache(cached);
+      return true;
+    }
+    return false;
+  }, [onUpdateCache]);
+
   // Handle explicit scan button click
   const handleScan = (universe = stockUniverse) => {
     setHasScanned(true);
@@ -213,25 +229,13 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
   // Handle scan type tab change - use temp cache if available, otherwise just switch
   const handleScanTypeChange = (type) => {
     setScanType(type);
-    const key = getCacheKey(type, stockUniverse);
-    const cached = tempCacheRef.current[key];
-    if (cached) {
-      // Restore from temp cache without re-fetching
-      onUpdateCache(cached);
-    }
-    // If no cache, just switch tab - user can click Scan to fetch
+    restoreCachedResults(type, stockUniverse);
   };
 
   // Handle universe change - just update selection, don't auto-scan
   const handleUniverseChange = (universe) => {
     setStockUniverse(universe);
-    // Check if we have cached results for this universe + current scanType
-    const key = getCacheKey(scanType, universe);
-    const cached = tempCacheRef.current[key];
-    if (cached) {
-      onUpdateCache(cached);
-    }
-    // Don't auto-scan - user clicks Scan when ready
+    restoreCachedResults(scanType, universe);
   };
 
   // Apply client-side search and indicator filters
@@ -1323,7 +1327,7 @@ function AIStockShowcase({ watchlist = [], onAddToWatchlist, onAddToRiskCalc, ca
                 Select an index and click Scan to start
               </p>
               <p style={{ fontSize: '0.9rem', marginTop: '8px', maxWidth: '500px', margin: '8px auto 0' }}>
-                Choose an NSE index above (Nifty 50, Large Cap, Mid Cap, Small Cap) and hit <strong>Scan</strong> to discover AI-powered trading opportunities. 
+                Choose an NSE index above ({STOCK_UNIVERSE_OPTIONS.filter(o => o.id !== 'all').map(o => o.label).join(', ')}) and hit <strong>Scan</strong> to discover AI-powered trading opportunities. 
                 Use <strong>Smart Filters</strong> to find stocks matching specific technical criteria.
               </p>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '24px' }}>
