@@ -9,7 +9,12 @@
     "frontend": "cd frontend && npm run dev",
     "install:all": "npm install && cd frontend && npm install"
   },
-  "keywords": ["stocks", "nse", "trading", "analysis"],
+  "keywords": [
+    "stocks",
+    "nse",
+    "trading",
+    "analysis"
+  ],
   "author": "Vivek",
   "license": "ISC",
   "type": "commonjs",
@@ -18,7 +23,18 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "mathjs": "^15.1.1",
+    "ml-regression": "^6.3.0",
+    "natural": "^8.1.0",
+    "node-cache": "^5.1.2",
     "node-fetch": "^2.7.0",
+    "sentiment": "^5.0.2",
+    "simple-statistics": "^7.8.8",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "synaptic": "^1.1.4",
+    "technicalindicators": "^3.1.0",
+    "ws": "^8.19.0",
     "yahoo-finance2": "^3.13.0"
   },
   "devDependencies": {
